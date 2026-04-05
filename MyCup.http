@@ -1,0 +1,6 @@
+@MyCup_HostAddress = http://localhost:5130
+
+GET {{MyCup_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
