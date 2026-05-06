@@ -19,6 +19,11 @@ public class Universe
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional description providing additional details about the universe.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
     /// Membership entries that define which users can access this universe.
     /// </summary>
     public ICollection<UserUniverse> UserUniverses { get; set; } = new List<UserUniverse>();

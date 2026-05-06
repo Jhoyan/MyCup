@@ -28,6 +28,9 @@ public class Championship
     [MaxLength(120)]
     public string Name { get; set; } = string.Empty;
 
+    public string? Slug { get; set; } = string.Empty;
+    public string Distribution { get; set; } = string.Empty;
+
     /// <summary>
     /// Navigation reference to the parent universe.
     /// </summary>

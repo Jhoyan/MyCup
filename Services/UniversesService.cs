@@ -1,3 +1,5 @@
+using MyCup.Data;
+
 namespace MyCup.Services;
 
 /// <summary>
@@ -5,4 +7,17 @@ namespace MyCup.Services;
 /// </summary>
 public class UniversesService
 {
+    private readonly AppDbContext _context;
+
+    public UniversesService(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task CreateUniverseAsync()
+    {
+        _context.Universes.Add(universe);
+
+        await _context.SaveChangesAsync();
+    }
 }
