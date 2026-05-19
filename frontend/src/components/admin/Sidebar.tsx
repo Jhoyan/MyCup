@@ -96,11 +96,10 @@ export default function Sidebar() {
             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
             style={{ background: "var(--mc-primary)", color: "white" }}
           >
-            {user?.name?.[0]?.toUpperCase() ?? "A"}
+            {user?.username?.[0]?.toUpperCase() ?? "A"}
           </div>
           <div className="overflow-hidden">
-            <p className="text-white text-sm font-medium truncate">{user?.name ?? "Admin"}</p>
-            <p className="text-[#64748b] text-xs truncate">{user?.email ?? ""}</p>
+            <p className="text-white text-sm font-medium truncate">{user?.username ?? "Admin"}</p>
           </div>
         </div>
         <button

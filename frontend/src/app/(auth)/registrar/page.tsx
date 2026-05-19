@@ -9,11 +9,21 @@ import Link from "next/link";
 import { register as registerApi } from "@/lib/auth";
 import { Eye, EyeOff, Trophy, Volleyball, ArrowLeft } from "lucide-react";
 
-const schema = z.object({
-  name: z.string().min(2, "Nome muito curto").max(120, "Máximo 120 caracteres"),
-  email: z.email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
-});
+const schema = z
+  .object({
+    usuario: z
+      .string()
+      .min(3, "Usuário deve ter ao menos 3 caracteres")
+      .max(50, "Máximo 50 caracteres")
+      .regex(/^[a-zA-Z0-9._-]+$/, "Use apenas letras, números, ponto, hífen ou underscore"),
+    email: z.email("Email inválido").optional().or(z.literal("")),
+    senha: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+    confirmaSenha: z.string().min(1, "Confirme a senha"),
+  })
+  .refine((data) => data.senha === data.confirmaSenha, {
+    path: ["confirmaSenha"],
+    message: "As senhas não conferem",
+  });
 
 type FormData = z.infer<typeof schema>;
 
@@ -29,7 +39,12 @@ export default function RegistrarPage() {
   async function onSubmit(data: FormData) {
     setError(null);
     try {
-      await registerApi(data.name, data.email, data.password);
+      await registerApi({
+        usuario: data.usuario,
+        email: data.email || undefined,
+        senha: data.senha,
+        confirmaSenha: data.confirmaSenha,
+      });
       router.push("/dashboard");
     } catch (e) {
       setError((e as Error).message);
@@ -131,21 +146,21 @@ export default function RegistrarPage() {
           >
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
-              {/* Nome */}
-              <FormField
-                id="name"
-                label="Nome completo"
+              {/* Usuário */}
+              <SimpleField
+                id="usuario"
+                label="Usuário"
                 type="text"
-                autoComplete="name"
-                placeholder="João Silva"
-                error={errors.name?.message}
-                registerProps={register("name")}
+                autoComplete="username"
+                placeholder="seu_usuario"
+                error={errors.usuario?.message}
+                registerProps={register("usuario")}
               />
 
-              {/* Email */}
-              <FormField
+              {/* Email (opcional) */}
+              <SimpleField
                 id="email"
-                label="Email"
+                label="Email (opcional)"
                 type="email"
                 autoComplete="email"
                 placeholder="seu@email.com"
@@ -156,7 +171,7 @@ export default function RegistrarPage() {
               {/* Senha */}
               <div className="space-y-1.5">
                 <label
-                  htmlFor="password"
+                  htmlFor="senha"
                   className="block text-sm font-semibold"
                   style={{ color: "var(--mc-text)" }}
                 >
@@ -164,25 +179,25 @@ export default function RegistrarPage() {
                 </label>
                 <div className="relative">
                   <input
-                    id="password"
+                    id="senha"
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
-                    {...register("password")}
+                    {...register("senha")}
                     placeholder="••••••••"
                     className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all"
                     style={{
                       background: "var(--mc-bg)",
-                      border: `1px solid ${errors.password ? "var(--mc-danger)" : "var(--mc-border)"}`,
+                      border: `1px solid ${errors.senha ? "var(--mc-danger)" : "var(--mc-border)"}`,
                       color: "var(--mc-text)",
                     }}
                     onFocus={(e) => {
-                      if (!errors.password) {
+                      if (!errors.senha) {
                         e.currentTarget.style.borderColor = "var(--mc-primary)";
                         e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,91,170,0.1)";
                       }
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.borderColor = errors.password ? "var(--mc-danger)" : "var(--mc-border)";
+                      e.currentTarget.style.borderColor = errors.senha ? "var(--mc-danger)" : "var(--mc-border)";
                       e.currentTarget.style.boxShadow = "none";
                     }}
                   />
@@ -195,12 +210,23 @@ export default function RegistrarPage() {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                {errors.password && (
+                {errors.senha && (
                   <p className="text-xs" style={{ color: "var(--mc-danger)" }}>
-                    {errors.password.message}
+                    {errors.senha.message}
                   </p>
                 )}
               </div>
+
+              {/* Confirma senha */}
+              <SimpleField
+                id="confirmaSenha"
+                label="Confirme a senha"
+                type="password"
+                autoComplete="new-password"
+                placeholder="••••••••"
+                error={errors.confirmaSenha?.message}
+                registerProps={register("confirmaSenha")}
+              />
 
               {/* Error global */}
               {error && (
@@ -240,7 +266,7 @@ export default function RegistrarPage() {
 
 // ── Field helper ──────────────────────────────────────────────────────────────
 
-function FormField({
+function SimpleField({
   id, label, type, autoComplete, placeholder, error, registerProps,
 }: {
   id: string;

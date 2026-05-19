@@ -3,22 +3,31 @@
 // aqui batem com o JSON real retornado pela API.
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
+// Os DTOs reais do backend (em DTOs/Authentication/) misturam PT-BR e EN.
+// Mantemos a forma exata aqui para não precisar transformar no fetch.
+
 export type LoginRequest = {
   email: string;
   password: string;
 };
 
 export type RegisterRequest = {
-  name: string;
-  email: string;
-  password: string;
+  usuario: string;
+  email?: string;
+  senha: string;
+  confirmaSenha: string;
+};
+
+export type UserInfoResponse = {
+  id: number;
+  username: string;
 };
 
 export type AuthResponse = {
   token: string;
-  userId: number;
-  name: string;
-  email: string;
+  refreshToken: string;
+  expiraEm: string;     // ISO date
+  user: UserInfoResponse;
 };
 
 // ─── Universos ────────────────────────────────────────────────────────────────
