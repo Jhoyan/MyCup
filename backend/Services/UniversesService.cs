@@ -1,4 +1,6 @@
 using MyCup.Data;
+using MyCup.DTOs.Universe;
+using MyCup.Models;
 
 namespace MyCup.Services;
 
@@ -14,8 +16,14 @@ public class UniversesService
         _context = context;
     }
 
-    public async Task CreateUniverseAsync()
+    public async Task CreateUniverseAsync(CreateUniverseDto dto)
     {
+        Universe universe = new()
+        {
+            Name = dto.Name,
+            Description = dto.Description
+        };
+
         _context.Universes.Add(universe);
 
         await _context.SaveChangesAsync();
