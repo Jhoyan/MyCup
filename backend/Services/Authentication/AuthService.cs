@@ -57,50 +57,57 @@ namespace MyCup.Services.Authentication
 
         public async Task<(bool Success, string Message, AuthResponseDTO? Response)> RegisterAsync(RegisterRequestDTO dto, string userId)
         {
-            if (dto.Senha != dto.ConfirmaSenha)
-                return (false, "Senhas não condizem", null);
-
-            // Verificar se username já existe
-            if (await _context.Users.AnyAsync(u => u.Name == dto.Usuario))
+            try
             {
-                return (false, "Username já está em uso", null);
+                if (dto.Senha != dto.ConfirmaSenha)
+                    return (false, "Senhas não condizem", null);
+
+                // Verificar se username já existe
+                if (await _context.Users.AnyAsync(u => u.Name == dto.Usuario))
+                {
+                    return (false, "Username já está em uso", null);
+                }
+
+                // Verificar se email já existe (se fornecido)
+                if (!string.IsNullOrEmpty(dto.Email) && await _context.Users.AnyAsync(u => u.Email == dto.Email))
+                {
+                    return (false, "Email já está em uso", null);
+                }
+
+                // Criar novo usuário
+                var newUser = new Models.User
+                {
+                    Name = dto.Usuario,
+                    Email = dto.Email,
+                    PasswordHash = Models.User.HashPassword(dto.Senha),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Users.Add(newUser);
+                await _context.SaveChangesAsync();
+
+                // Gerar token JWT pro novo usuário
+                var token = _tokenManager.GenerateToken(newUser);
+                var expiresAt = DateTime.UtcNow.AddMinutes(10);
+
+                // Montar resposta
+                var response = new AuthResponseDTO
+                {
+                    Token = token,
+                    ExpiraEm = expiresAt,
+                    User = new UserInfoResponseDTO(
+                        newUser.Id,
+                        newUser.Name
+                    )
+                };
+
+                return (true, string.Empty, response);
             }
-
-            // Verificar se email já existe (se fornecido)
-            if (!string.IsNullOrEmpty(dto.Email) && await _context.Users.AnyAsync(u => u.Email == dto.Email))
+            catch
             {
-                return (false, "Email já está em uso", null);
+                throw;
             }
-
-            // Criar novo usuário
-            var newUser = new Models.User
-            {
-                Name = dto.Usuario,
-                Email = dto.Email,
-                PasswordHash = Models.User.HashPassword(dto.Senha),
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Users.Add(newUser);
-            await _context.SaveChangesAsync();
-
-            // Gerar token JWT pro novo usuário
-            var token = _tokenManager.GenerateToken(newUser);
-            var expiresAt = DateTime.UtcNow.AddMinutes(10);
-
-            // Montar resposta
-            var response = new AuthResponseDTO
-            {
-                Token = token,
-                ExpiraEm = expiresAt,
-                User = new UserInfoResponseDTO(
-                    newUser.Id,
-                    newUser.Name
-                )
-            };
-
-            return (true, string.Empty, response);
         }
 
         public async Task<(bool Success, string Message)> ChangePasswordAsync(int userId, ChangePasswordRequestDTO dto)
