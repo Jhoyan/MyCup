@@ -24,9 +24,9 @@ export default function NovoJogadorPage() {
   });
 
   async function onSubmit(data: FormData) {
-    const body: CreatePlayerRequest = { name: data.name };
+    const body: CreatePlayerRequest = { name: data.name, universeId: Number(universoid) };
     try {
-      await api.post(`/api/universes/${universoid}/players`, body);
+      await api.post("/api/players", body);
       toast.success("Jogador adicionado");
       router.push(`/universos/${universoid}`);
     } catch (e) {

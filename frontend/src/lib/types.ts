@@ -289,11 +289,11 @@ export type PlayerListItem = {
   name: string;
 };
 
-// ⚠️ Contrato em aberto: CreatePlayerDto exige `universeId` no corpo, mas o front
-// hoje envia o universo pela rota (/api/universes/{id}/players). Alinhar com BE-002
-// se o controller vai ler o id da rota ou do body antes de adicionar o campo aqui.
+// Espelha CreatePlayerDto. O backend usa rota plana (POST /api/players) e recebe
+// o universo pelo corpo (`universeId`), não pela rota.
 export type CreatePlayerRequest = {
   name: string;
+  universeId: number;
 };
 
 export type UpdatePlayerRequest = {

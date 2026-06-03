@@ -6,9 +6,10 @@ import { useParams } from "next/navigation";
 import {
   Users, Trophy, Plus, ChevronLeft, ChevronRight,
   User, Shirt, TrendingUp, MoreVertical, Pencil, Trash2,
-  Globe,
+  Globe, Loader2, AlertCircle,
 } from "lucide-react";
-import { mockUniversoDetail } from "@/lib/mocks/universos";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 import type { UniverseDetail, UniversePlayerStats, ChampionshipSummary } from "@/lib/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -37,9 +38,30 @@ type Tab = "jogadores" | "campeonatos";
 export default function UniversoPage() {
   const { universoid } = useParams<{ universoid: string }>();
   const [tab, setTab] = useState<Tab>("jogadores");
+  const [universo, setUniverso] = useState<UniverseDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // In production these would be fetched via API
-  const universo: UniverseDetail = mockUniversoDetail;
+  useEffect(() => {
+    if (!universoid) return;
+    let active = true;
+    api
+      .get<UniverseDetail>(`/api/universes/${universoid}`)
+      .then((d) => { if (active) setUniverso(d); })
+      .catch((e) => { if (active) setError((e as Error).message); });
+    return () => { active = false; };
+  }, [universoid]);
+
+  // Remove o jogador da lista local após exclusão (evita refetch).
+  function handlePlayerDeleted(playerId: number) {
+    setUniverso((u) => (u ? { ...u, players: u.players.filter((p) => p.id !== playerId) } : u));
+  }
+
+  if (error) {
+    return <DetailState icon={AlertCircle} tone="danger" title="Não foi possível carregar" subtitle={error} />;
+  }
+  if (!universo) {
+    return <DetailState icon={Loader2} tone="loading" title="Carregando universo..." />;
+  }
 
   const stats = [
     { label: "Jogadores",   value: universo.players.length,                                                icon: Users      },
@@ -166,7 +188,7 @@ export default function UniversoPage() {
 
         <div className="p-6">
           {tab === "jogadores" ? (
-            <JogadoresTab players={universo.players} universoid={universoid} />
+            <JogadoresTab players={universo.players} universoid={universoid} onPlayerDeleted={handlePlayerDeleted} />
           ) : (
             <CampeonatosTab championships={universo.championships} />
           )}
@@ -181,9 +203,11 @@ export default function UniversoPage() {
 function JogadoresTab({
   players,
   universoid,
+  onPlayerDeleted,
 }: {
   players: UniversePlayerStats[];
   universoid: string;
+  onPlayerDeleted: (playerId: number) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -235,7 +259,7 @@ function JogadoresTab({
           </thead>
           <tbody>
             {players.map((p, i) => (
-              <PlayerRow key={p.id} player={p} isFirst={i === 0} universoid={universoid} />
+              <PlayerRow key={p.id} player={p} isFirst={i === 0} universoid={universoid} onDeleted={onPlayerDeleted} />
             ))}
           </tbody>
         </table>
@@ -248,10 +272,12 @@ function PlayerRow({
   player,
   isFirst,
   universoid,
+  onDeleted,
 }: {
   player: UniversePlayerStats;
   isFirst: boolean;
   universoid: string;
+  onDeleted: (playerId: number) => void;
 }) {
   const winRate = player.matches > 0 ? Math.round((player.wins / player.matches) * 100) : 0;
 
@@ -300,15 +326,39 @@ function PlayerRow({
         {player.championships}
       </td>
       <td className="px-2 py-3 text-right">
-        <PlayerActionsMenu playerId={player.id} universoid={universoid} />
+        <PlayerActionsMenu playerId={player.id} universoid={universoid} onDeleted={onDeleted} />
       </td>
     </tr>
   );
 }
 
-function PlayerActionsMenu({ playerId, universoid }: { playerId: number; universoid: string }) {
+function PlayerActionsMenu({
+  playerId,
+  universoid,
+  onDeleted,
+}: {
+  playerId: number;
+  universoid: string;
+  onDeleted: (playerId: number) => void;
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  async function handleDelete() {
+    if (!confirm("Excluir este jogador? Esta ação não pode ser desfeita.")) {
+      setOpen(false);
+      return;
+    }
+    try {
+      await api.del(`/api/players/${playerId}`);
+      toast.success("Jogador excluído");
+      onDeleted(playerId);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setOpen(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -352,13 +402,7 @@ function PlayerActionsMenu({ playerId, universoid }: { playerId: number; univers
             <Pencil size={13} /> Editar
           </Link>
           <button
-            onClick={() => {
-              if (confirm("Excluir este jogador? Esta ação não pode ser desfeita.")) {
-                // TODO: api.del(`/api/universes/${universoid}/players/${playerId}`)
-                console.log("Excluir jogador", playerId);
-              }
-              setOpen(false);
-            }}
+            onClick={handleDelete}
             className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-[var(--mc-bg)]"
             style={{ color: "var(--mc-danger)" }}
           >
@@ -447,6 +491,40 @@ function CampeonatosTab({ championships }: { championships: ChampionshipSummary[
           <ChevronRight size={16} style={{ color: "var(--mc-text-muted)", flexShrink: 0 }} />
         </Link>
       ))}
+    </div>
+  );
+}
+
+// ── Loading / Error state (full page) ─────────────────────────────────────────
+
+function DetailState({
+  icon: Icon, tone, title, subtitle,
+}: {
+  icon: React.ElementType;
+  tone: "loading" | "danger";
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="max-w-[1280px]">
+      <Link
+        href="/universos"
+        className="inline-flex items-center gap-1 text-sm font-medium mb-8 transition-colors"
+        style={{ color: "var(--mc-text-muted)" }}
+        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--mc-primary)")}
+        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--mc-text-muted)")}
+      >
+        <ChevronLeft size={15} /> Universos
+      </Link>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Icon
+          className={tone === "loading" ? "animate-spin" : ""}
+          size={28}
+          style={{ color: tone === "danger" ? "var(--mc-danger)" : "var(--mc-primary)" }}
+        />
+        <p className="font-bold text-base mt-3 mb-1" style={{ color: "var(--mc-text)" }}>{title}</p>
+        {subtitle && <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>{subtitle}</p>}
+      </div>
     </div>
   );
 }

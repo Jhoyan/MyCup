@@ -39,9 +39,9 @@
 > Hoje as telas rodam em cima de `src/lib/mocks/`. Trocar por chamadas via `api`.
 
 - [ ] **FE-001** 🔴 Dashboard: trocar `mocks/dashboard.ts` por `api.get` em [dashboard/page.tsx](frontend/src/app/(admin)/dashboard/page.tsx).
-- [ ] **FE-002** 🔴 Universos: ligar list / detalhe / novo à API (`mocks/universos.ts` → real). Depende de **BE-001**.
+- [x] **FE-002** 🔴 Universos: ligar list / detalhe / novo à API (`mocks/universos.ts` → real). Depende de **BE-001**.
 - [ ] **FE-003** 🔴 Campeonatos: ligar list / detalhe / novo (`mocks/campeonatos.ts` → real); alimentar [BracketView.tsx](frontend/src/components/campeonato/BracketView.tsx) e [StatisticsView.tsx](frontend/src/components/campeonato/StatisticsView.tsx) com DTOs reais. Depende de **BE-003/008/009**.
-- [ ] **FE-004** 🔴 Jogadores: fluxo de criação ([universos/[universoid]/jogadores/novo](frontend/src/app/(admin)/universos/[universoid]/jogadores/novo/page.tsx)) ligado à API. Depende de **BE-002**.
+- [x] **FE-004** 🔴 Jogadores: fluxo de criação ([universos/[universoid]/jogadores/novo](frontend/src/app/(admin)/universos/[universoid]/jogadores/novo/page.tsx)) ligado à API. Depende de **BE-002**.
 - [ ] **FE-012** 🟢 Remover `frontend/src/lib/mocks/` quando todas as telas estiverem integradas.
 
 ### Epic B — Autenticação & sessão

@@ -1,13 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Globe, Trophy, Users, ChevronRight, Plus } from "lucide-react";
-import { mockUniversos } from "@/lib/mocks/universos";
+import { Globe, Trophy, Users, ChevronRight, Plus, Loader2, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
 import type { UniverseListItem } from "@/lib/types";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function UniversosPage() {
+  const [universos, setUniversos] = useState<UniverseListItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<UniverseListItem[]>("/api/universes")
+      .then(setUniversos)
+      .catch((e) => setError((e as Error).message));
+  }, []);
+
   return (
     <div className="space-y-8 max-w-[1280px]">
 
@@ -33,16 +44,46 @@ export default function UniversosPage() {
         </Link>
       </div>
 
-      {/* Grid */}
-      {mockUniversos.length === 0 ? (
+      {/* Grid / estados */}
+      {error ? (
+        <ErrorState message={error} />
+      ) : universos === null ? (
+        <LoadingState />
+      ) : universos.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {mockUniversos.map((u) => (
+          {universos.map((u) => (
             <UniversoCard key={u.id} universo={u} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Loading / Error states ────────────────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <Loader2 className="animate-spin mb-3" size={28} style={{ color: "var(--mc-primary)" }} />
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>Carregando universos...</p>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center py-20 rounded-2xl text-center"
+      style={{ border: "1px solid var(--mc-border)", background: "var(--mc-surface)" }}
+    >
+      <AlertCircle size={28} className="mb-3" style={{ color: "var(--mc-danger)" }} />
+      <p className="font-bold text-base mb-1" style={{ color: "var(--mc-text)" }}>
+        Não foi possível carregar
+      </p>
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>{message}</p>
     </div>
   );
 }
