@@ -38,6 +38,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<ITokenManager, TokenManager>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UniversesService>();
+builder.Services.AddScoped<PlayersService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
