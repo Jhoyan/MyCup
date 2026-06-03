@@ -9,11 +9,21 @@ import Link from "next/link";
 import { register as registerApi } from "@/lib/auth";
 import { Eye, EyeOff, Trophy, Volleyball, ArrowLeft } from "lucide-react";
 
-const schema = z.object({
-  name: z.string().min(2, "Nome muito curto").max(120, "Máximo 120 caracteres"),
-  email: z.email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
-});
+const schema = z
+  .object({
+    usuario: z
+      .string()
+      .min(1, "Usuário é obrigatório")
+      .max(50, "Máximo 50 caracteres")
+      .regex(/^[a-zA-Z0-9._-]+$/, "Use apenas letras, números, ponto, hífen e underscore"),
+    email: z.email("Email inválido"),
+    senha: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+    confirmaSenha: z.string().min(1, "Confirme sua senha"),
+  })
+  .refine((d) => d.senha === d.confirmaSenha, {
+    message: "As senhas não coincidem",
+    path: ["confirmaSenha"],
+  });
 
 type FormData = z.infer<typeof schema>;
 
@@ -21,6 +31,7 @@ export default function RegistrarPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -29,7 +40,12 @@ export default function RegistrarPage() {
   async function onSubmit(data: FormData) {
     setError(null);
     try {
-      await registerApi(data.name, data.email, data.password);
+      await registerApi({
+        usuario: data.usuario,
+        email: data.email,
+        senha: data.senha,
+        confirmaSenha: data.confirmaSenha,
+      });
       router.push("/dashboard");
     } catch (e) {
       setError((e as Error).message);
@@ -131,15 +147,15 @@ export default function RegistrarPage() {
           >
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
-              {/* Nome */}
+              {/* Usuário */}
               <FormField
-                id="name"
-                label="Nome completo"
+                id="usuario"
+                label="Usuário"
                 type="text"
-                autoComplete="name"
-                placeholder="João Silva"
-                error={errors.name?.message}
-                registerProps={register("name")}
+                autoComplete="username"
+                placeholder="joao.silva"
+                error={errors.usuario?.message}
+                registerProps={register("usuario")}
               />
 
               {/* Email */}
@@ -154,53 +170,26 @@ export default function RegistrarPage() {
               />
 
               {/* Senha */}
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-semibold"
-                  style={{ color: "var(--mc-text)" }}
-                >
-                  Senha
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    {...register("password")}
-                    placeholder="••••••••"
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all"
-                    style={{
-                      background: "var(--mc-bg)",
-                      border: `1px solid ${errors.password ? "var(--mc-danger)" : "var(--mc-border)"}`,
-                      color: "var(--mc-text)",
-                    }}
-                    onFocus={(e) => {
-                      if (!errors.password) {
-                        e.currentTarget.style.borderColor = "var(--mc-primary)";
-                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,91,170,0.1)";
-                      }
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = errors.password ? "var(--mc-danger)" : "var(--mc-border)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: "var(--mc-text-muted)" }}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-xs" style={{ color: "var(--mc-danger)" }}>
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
+              <PasswordField
+                id="senha"
+                label="Senha"
+                autoComplete="new-password"
+                show={showPassword}
+                onToggle={() => setShowPassword((v) => !v)}
+                error={errors.senha?.message}
+                registerProps={register("senha")}
+              />
+
+              {/* Confirmar senha */}
+              <PasswordField
+                id="confirmaSenha"
+                label="Confirmar senha"
+                autoComplete="new-password"
+                show={showConfirm}
+                onToggle={() => setShowConfirm((v) => !v)}
+                error={errors.confirmaSenha?.message}
+                registerProps={register("confirmaSenha")}
+              />
 
               {/* Error global */}
               {error && (
@@ -283,6 +272,70 @@ function FormField({
           e.currentTarget.style.boxShadow = "none";
         }}
       />
+      {error && (
+        <p className="text-xs" style={{ color: "var(--mc-danger)" }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Password field helper (com toggle de visibilidade) ─────────────────────────
+
+function PasswordField({
+  id, label, autoComplete, show, onToggle, error, registerProps,
+}: {
+  id: string;
+  label: string;
+  autoComplete: string;
+  show: boolean;
+  onToggle: () => void;
+  error?: string;
+  registerProps: ReturnType<ReturnType<typeof useForm<FormData>>["register"]>;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label
+        htmlFor={id}
+        className="block text-sm font-semibold"
+        style={{ color: "var(--mc-text)" }}
+      >
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type={show ? "text" : "password"}
+          autoComplete={autoComplete}
+          {...registerProps}
+          placeholder="••••••••"
+          className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all"
+          style={{
+            background: "var(--mc-bg)",
+            border: `1px solid ${error ? "var(--mc-danger)" : "var(--mc-border)"}`,
+            color: "var(--mc-text)",
+          }}
+          onFocus={(e) => {
+            if (!error) {
+              e.currentTarget.style.borderColor = "var(--mc-primary)";
+              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,91,170,0.1)";
+            }
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = error ? "var(--mc-danger)" : "var(--mc-border)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+          style={{ color: "var(--mc-text-muted)" }}
+        >
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
       {error && (
         <p className="text-xs" style={{ color: "var(--mc-danger)" }}>
           {error}

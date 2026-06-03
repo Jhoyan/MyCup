@@ -8,10 +8,13 @@ export type LoginRequest = {
   password: string;
 };
 
+// Espelha RegisterRequestDTO do backend (campos em camelCase no JSON).
+// `email` é opcional no back; `confirmaSenha` é validado server-side contra `senha`.
 export type RegisterRequest = {
-  name: string;
-  email: string;
-  password: string;
+  usuario: string;
+  email?: string;
+  senha: string;
+  confirmaSenha: string;
 };
 
 export type AuthResponse = {
