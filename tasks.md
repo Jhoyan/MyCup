@@ -47,14 +47,14 @@
 ### Epic B — Autenticação & sessão
 - [x] **FE-005** 🔴 Ajustar `register()` ao contrato final (ver **INT-001**).
 - [x] **FE-013** 🔴 Atualizar formulário de registro ([registrar/page.tsx](frontend/src/app/(auth)/registrar/page.tsx)) para o novo sistema: campos `usuario` (username), `email`, `senha` e `confirmaSenha` alinhados ao `RegisterRequestDTO` do back. Validar com `zod` (mínimo 6 chars na senha, regex no username `^[a-zA-Z0-9._-]+$`). Depende de **INT-001** e **FE-005**.
-- [ ] **FE-006** 🟡 Proteção de rotas: redirecionar para `/login` quando `!isAuthenticated()`; guard no [(admin)/layout.tsx](frontend/src/app/(admin)/layout.tsx).
+- [x] **FE-006** 🟡 Proteção de rotas: redirecionar para `/login` quando `!isAuthenticated()`; guard no [(admin)/layout.tsx](frontend/src/app/(admin)/layout.tsx).
 - [ ] **FE-007** 🟡 Refresh automático: interceptar `401` no [api.ts](frontend/src/lib/api.ts) e chamar `/api/auth/refresh`. Depende de **BE-011**.
-- [ ] **FE-008** 🟢 Logout (`clearAuth`) na [Sidebar.tsx](frontend/src/components/admin/Sidebar.tsx) + feedback com `sonner`.
+- [x] **FE-008** 🟢 Logout (`clearAuth`) na [Sidebar.tsx](frontend/src/components/admin/Sidebar.tsx) + feedback com `sonner`.
 
 ### Epic C — UX & qualidade
 - [ ] **FE-009** 🟡 Estados de **loading / erro / vazio** em toda tela que faz fetch.
-- [ ] **FE-010** 🟡 Validação de formulários com `zod` + `react-hook-form` (já nas deps) em login, registrar, novo universo/campeonato/jogador.
-- [ ] **FE-011** 🟢 Consolidar tipos em [types.ts](frontend/src/lib/types.ts) espelhando os DTOs (ver **INT-004**).
+- [x] **FE-010** 🟡 Validação de formulários com `zod` + `react-hook-form` (já nas deps) em login, registrar, novo universo/campeonato/jogador.
+- [x] **FE-011** 🟢 Consolidar tipos em [types.ts](frontend/src/lib/types.ts) espelhando os DTOs (ver **INT-004**).
 
 ---
 

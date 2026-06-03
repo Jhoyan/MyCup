@@ -1,18 +1,35 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { isAuthenticated } from "@/lib/auth";
 import Sidebar from "@/components/admin/Sidebar";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  // "checking" enquanto validamos a sessão no client; evita renderizar
+  // o conteúdo protegido antes de saber se o usuário está autenticado.
+  const [status, setStatus] = useState<"checking" | "authed">("checking");
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    if (isAuthenticated()) {
+      setStatus("authed");
+    } else {
       router.replace("/login");
     }
   }, [router]);
+
+  if (status === "checking") {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "var(--mc-bg)" }}
+      >
+        <Loader2 className="animate-spin" size={28} style={{ color: "var(--mc-primary)" }} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--mc-bg)" }}>

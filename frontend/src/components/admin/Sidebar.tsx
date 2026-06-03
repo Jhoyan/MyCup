@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { clearAuth, getAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Globe, Trophy, LogOut, Volleyball } from "lucide-react";
@@ -29,6 +30,7 @@ export default function Sidebar() {
 
   function handleLogout() {
     clearAuth();
+    toast.success("Sessão encerrada");
     router.push("/login");
   }
 
@@ -96,11 +98,10 @@ export default function Sidebar() {
             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
             style={{ background: "var(--mc-primary)", color: "white" }}
           >
-            {user?.name?.[0]?.toUpperCase() ?? "A"}
+            {user?.user?.username?.[0]?.toUpperCase() ?? "A"}
           </div>
           <div className="overflow-hidden">
-            <p className="text-white text-sm font-medium truncate">{user?.name ?? "Admin"}</p>
-            <p className="text-[#64748b] text-xs truncate">{user?.email ?? ""}</p>
+            <p className="text-white text-sm font-medium truncate">{user?.user?.username ?? "Admin"}</p>
           </div>
         </div>
         <button

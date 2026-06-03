@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { ChevronLeft, Globe } from "lucide-react";
 import Link from "next/link";
@@ -27,8 +28,13 @@ export default function NovoUniversoPage() {
       name: data.name,
       description: data.description || undefined,
     };
-    await api.post("/api/universes", body);
-    router.push("/universos");
+    try {
+      await api.post("/api/universes", body);
+      toast.success("Universo criado");
+      router.push("/universos");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
   }
 
   return (

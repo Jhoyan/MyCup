@@ -17,11 +17,31 @@ export type RegisterRequest = {
   confirmaSenha: string;
 };
 
+// Espelha UserInfoResponseDTO do backend (camelCase no JSON).
+export type UserInfo = {
+  id: number;
+  username: string;
+};
+
+// Espelha AuthResponseDTO do backend. `refreshToken` vem vazio no register
+// (só o login o preenche hoje); `expiraEm` é ISO string.
 export type AuthResponse = {
   token: string;
-  userId: number;
-  name: string;
-  email: string;
+  refreshToken: string;
+  expiraEm: string;
+  user: UserInfo;
+};
+
+// ─── Erros da API ─────────────────────────────────────────────────────────────
+// Espelha ErrorResponseDto — formato padrão de erro lido em api.ts (`error.message`).
+export type ApiError = {
+  message: string;
+};
+
+// Espelha ValidationErrorResponseDto — erros de validação por campo (ModelState).
+export type ValidationErrorResponse = {
+  message: string;
+  errors: Record<string, string[]>;
 };
 
 // ─── Universos ────────────────────────────────────────────────────────────────
@@ -74,6 +94,9 @@ export type ChampionshipSummary = {
   totalRounds: number;
 };
 
+// ⚠️ Contrato em aberto: CreateChampionshipDto exige também `formatId` (int) e tem
+// um `format` (string) redundante. Definir o mapeamento format→formatId depende do
+// seed de Formats (BE-015) e do controller (BE-003). Não incluído até alinhar (INT-001).
 export type CreateChampionshipRequest = {
   name: string;
   format: ChampionshipFormat;
@@ -266,6 +289,9 @@ export type PlayerListItem = {
   name: string;
 };
 
+// ⚠️ Contrato em aberto: CreatePlayerDto exige `universeId` no corpo, mas o front
+// hoje envia o universo pela rota (/api/universes/{id}/players). Alinhar com BE-002
+// se o controller vai ler o id da rota ou do body antes de adicionar o campo aqui.
 export type CreatePlayerRequest = {
   name: string;
 };

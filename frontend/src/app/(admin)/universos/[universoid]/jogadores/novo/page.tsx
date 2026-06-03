@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { ChevronLeft, User } from "lucide-react";
 import type { CreatePlayerRequest } from "@/lib/types";
@@ -24,8 +25,13 @@ export default function NovoJogadorPage() {
 
   async function onSubmit(data: FormData) {
     const body: CreatePlayerRequest = { name: data.name };
-    await api.post(`/api/universes/${universoid}/players`, body);
-    router.push(`/universos/${universoid}`);
+    try {
+      await api.post(`/api/universes/${universoid}/players`, body);
+      toast.success("Jogador adicionado");
+      router.push(`/universos/${universoid}`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
   }
 
   return (
