@@ -83,12 +83,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// </summary>
     public DbSet<Match> Matches => Set<Match>();
 
-    /// <summary>
-    /// Individual player statistics per match.
-    /// </summary>
-    public DbSet<MatchStatistic> MatchStatistics => Set<MatchStatistic>();
-
-    /// <summary>
+/// <summary>
     /// Configures entity mappings, table names, keys, indexes, and relationships.
     /// </summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -110,7 +105,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Round>().ToTable("rounds");
         modelBuilder.Entity<Team>().ToTable("teams");
         modelBuilder.Entity<Match>().ToTable("matches");
-        modelBuilder.Entity<MatchStatistic>().ToTable("match_statistics");
 
         modelBuilder.Entity<UserUniverse>()
             .HasKey(x => new { x.UserId, x.UniverseId });
@@ -228,14 +222,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(x => x.AwayTeamId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<MatchStatistic>()
-            .HasOne(x => x.Match)
-            .WithMany(x => x.MatchStatistics)
-            .HasForeignKey(x => x.MatchId);
-
-        modelBuilder.Entity<MatchStatistic>()
-            .HasOne(x => x.Player)
-            .WithMany(x => x.MatchStatistics)
-            .HasForeignKey(x => x.PlayerId);
     }
 }

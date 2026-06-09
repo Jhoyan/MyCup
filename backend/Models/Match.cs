@@ -63,8 +63,4 @@ public class Match
     /// </summary>
     public Team AwayTeam { get; set; } = null!;
 
-    /// <summary>
-    /// Individual player statistics registered for this match.
-    /// </summary>
-    public ICollection<MatchStatistic> MatchStatistics { get; set; } = new List<MatchStatistic>();
 }

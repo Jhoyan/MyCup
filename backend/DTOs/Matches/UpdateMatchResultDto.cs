@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using MyCup.Models;
+
 namespace MyCup.DTOs.Matches
 {
     public class UpdateMatchResultDto
@@ -12,10 +12,5 @@ namespace MyCup.DTOs.Matches
 
         [Required]
         public string Status { get; set; } = string.Empty;
-
-        public List<MatchStatisticInputDto> Statistics { get; set; } = new();
-        public int MatchId { get; set; }
-        public string Result { get; set; } = string.Empty;
-        public MatchStatistic matchStatistic { get; set; } = new MatchStatistic();
     }
 }

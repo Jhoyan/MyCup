@@ -53,8 +53,6 @@ public class UniversesService
         var universe = await _context.Universes
             .Include(u => u.Players)
                 .ThenInclude(p => p.PlayerChampionships)
-            .Include(u => u.Players)
-                .ThenInclude(p => p.MatchStatistics)
             .Include(u => u.Championships)
                 .ThenInclude(c => c.Format)
             .Include(u => u.Championships)
@@ -73,13 +71,7 @@ public class UniversesService
             {
                 Id = p.Id,
                 Name = p.Name,
-                Championships = p.PlayerChampionships.Count,
-                Goals = p.MatchStatistics.Sum(ms => ms.Goals),
-                Assists = p.MatchStatistics.Sum(ms => ms.Assists),
-                Wins = p.MatchStatistics.Count(ms => ms.Result == "win"),
-                Draws = p.MatchStatistics.Count(ms => ms.Result == "draw"),
-                Losses = p.MatchStatistics.Count(ms => ms.Result == "loss"),
-                Matches = p.MatchStatistics.Count
+                Championships = p.PlayerChampionships.Count
             }).ToList(),
             Championships = universe.Championships.Select(c => new ChampionshipSummaryDto
             {
