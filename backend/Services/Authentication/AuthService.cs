@@ -1,5 +1,6 @@
 ﻿using MyCup.Data;
 using MyCup.DTOs.Authentication;
+using MyCup.Errors;
 using MyCup.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -17,7 +18,7 @@ namespace MyCup.Services.Authentication
             _tokenManager = tokenManager;
         }
 
-        public async Task<(bool Success, string Message, AuthResponseDTO? Response)> LoginAsync(LoginRequestDTO dto)
+        public async Task<AuthResponseDTO> LoginAsync(LoginRequestDTO dto)
         {
             // Buscar usuário pelo email
             var usuario = await _context.Users
@@ -25,15 +26,15 @@ namespace MyCup.Services.Authentication
 
             // Verificar se usuário existe
             if (usuario == null)
-                return (false, "Email ou senha inválidos", null);
+                throw new UnauthorizedException("Email ou senha inválidos");
 
             // Verificar se usuário está ativo
             if (!usuario.IsActive)
-                return (false, "Usuário inativo. Entre em contato com o suporte.", null);
+                throw new ForbiddenException("Usuário inativo. Entre em contato com o suporte.");
 
             // Verificar senha
             if (!usuario.VerifyPassword(dto.Password))
-                return (false, "Email ou senha inválidos", null);
+                throw new UnauthorizedException("Email ou senha inválidos");
 
             // Gerar token JWT
             var token = _tokenManager.GenerateToken(usuario);
@@ -41,7 +42,7 @@ namespace MyCup.Services.Authentication
             var expiresAt = DateTime.UtcNow.AddMinutes(10);
 
             // Montar resposta
-            var response = new AuthResponseDTO
+            return new AuthResponseDTO
             {
                 Token = token,
                 RefreshToken = refreshToken,
@@ -51,92 +52,71 @@ namespace MyCup.Services.Authentication
                     usuario.Name
                 )
             };
-
-            return (true, string.Empty, response);
         }
 
-        public async Task<(bool Success, string Message, AuthResponseDTO? Response)> RegisterAsync(RegisterRequestDTO dto, string userId)
+        public async Task<AuthResponseDTO> RegisterAsync(RegisterRequestDTO dto, string userId)
         {
-            try
+            if (dto.Senha != dto.ConfirmaSenha)
+                throw new BadRequestException("Senhas não condizem");
+
+            // Verificar se username já existe
+            if (await _context.Users.AnyAsync(u => u.Name == dto.Usuario))
+                throw new ConflictException("Username já está em uso");
+
+            // Verificar se email já existe (se fornecido)
+            if (!string.IsNullOrEmpty(dto.Email) && await _context.Users.AnyAsync(u => u.Email == dto.Email))
+                throw new ConflictException("Email já está em uso");
+
+            // Criar novo usuário
+            var newUser = new Models.User
             {
-                if (dto.Senha != dto.ConfirmaSenha)
-                    return (false, "Senhas não condizem", null);
+                Name = dto.Usuario,
+                Email = dto.Email,
+                PasswordHash = Models.User.HashPassword(dto.Senha),
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
 
-                // Verificar se username já existe
-                if (await _context.Users.AnyAsync(u => u.Name == dto.Usuario))
-                {
-                    return (false, "Username já está em uso", null);
-                }
+            _context.Users.Add(newUser);
+            await _context.SaveChangesAsync();
 
-                // Verificar se email já existe (se fornecido)
-                if (!string.IsNullOrEmpty(dto.Email) && await _context.Users.AnyAsync(u => u.Email == dto.Email))
-                {
-                    return (false, "Email já está em uso", null);
-                }
+            // Gerar token JWT pro novo usuário
+            var token = _tokenManager.GenerateToken(newUser);
+            var expiresAt = DateTime.UtcNow.AddMinutes(10);
 
-                // Criar novo usuário
-                var newUser = new Models.User
-                {
-                    Name = dto.Usuario,
-                    Email = dto.Email,
-                    PasswordHash = Models.User.HashPassword(dto.Senha),
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.Users.Add(newUser);
-                await _context.SaveChangesAsync();
-
-                // Gerar token JWT pro novo usuário
-                var token = _tokenManager.GenerateToken(newUser);
-                var expiresAt = DateTime.UtcNow.AddMinutes(10);
-
-                // Montar resposta
-                var response = new AuthResponseDTO
-                {
-                    Token = token,
-                    ExpiraEm = expiresAt,
-                    User = new UserInfoResponseDTO(
-                        newUser.Id,
-                        newUser.Name
-                    )
-                };
-
-                return (true, string.Empty, response);
-            }
-            catch
+            // Montar resposta
+            return new AuthResponseDTO
             {
-                throw;
-            }
+                Token = token,
+                ExpiraEm = expiresAt,
+                User = new UserInfoResponseDTO(
+                    newUser.Id,
+                    newUser.Name
+                )
+            };
         }
 
-        public async Task<(bool Success, string Message)> ChangePasswordAsync(int userId, ChangePasswordRequestDTO dto)
+        public async Task ChangePasswordAsync(int userId, ChangePasswordRequestDTO dto)
         {
             // Buscar usuário no banco
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
-            {
-                return (false, "Usuário não encontrado");
-            }
+                throw new NotFoundException("Usuário não encontrado");
 
             // Verificar se a senha atual está correta
             if (!user.VerifyPassword(dto.SenhaAtual))
-            {
-                return (false, "Senha atual incorreta");
-            }
+                throw new BadRequestException("Senha atual incorreta");
 
             // Verificar se a nova senha condiz com a confirmação de senha
             if (dto.ConfirmaNovaSenha != dto.NovaSenha)
-                return (false, "Senhas não condizem");
+                throw new BadRequestException("Senhas não condizem");
 
             // Atualizar senha
             user.PasswordHash = Models.User.HashPassword(dto.NovaSenha);
             await _context.SaveChangesAsync();
-
-            return (true, "Senha alterada com sucesso!");
         }
 
-        public async Task<(bool Success, string Message, UserInfoResponseDTO? User)> GetCurrentUserAsync(int userId)
+        public async Task<UserInfoResponseDTO> GetCurrentUserAsync(int userId)
         {
             // Buscar usuário
             var user = await _context.Users
@@ -144,17 +124,13 @@ namespace MyCup.Services.Authentication
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-            {
-                return (false, "Usuário não encontrado", null);
-            }
+                throw new NotFoundException("Usuário não encontrado");
 
             // Retornar dados (SEM senha!)
-            var response = new UserInfoResponseDTO(
+            return new UserInfoResponseDTO(
                 user.Id,
                 user.Name
             );
-
-            return (true, string.Empty, response);
         }
     }
 }

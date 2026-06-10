@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MyCup.Data;
 using MyCup.DTOs.Players;
+using MyCup.Errors;
 using MyCup.Models;
 
 namespace MyCup.Services;
@@ -17,11 +18,11 @@ public class PlayersService
         _context = context;
     }
 
-    public async Task<(bool success, string message, int id)> CreatePlayerAsync(CreatePlayerDto dto)
+    public async Task<int> CreatePlayerAsync(CreatePlayerDto dto)
     {
         var universeExists = await _context.Universes.AnyAsync(u => u.Id == dto.UniverseId);
         if (!universeExists)
-            return (false, "Universo não encontrado", 0);
+            throw new NotFoundException("Universo não encontrado");
 
         Player player = new()
         {
@@ -32,12 +33,12 @@ public class PlayersService
         _context.Players.Add(player);
         await _context.SaveChangesAsync();
 
-        return (true, "Jogador criado com sucesso", player.Id);
+        return player.Id;
     }
 
-    public async Task<(bool success, string message, List<PlayerListItemDto> data)> GetByUniverseAsync(int universeId)
+    public async Task<List<PlayerListItemDto>> GetByUniverseAsync(int universeId)
     {
-        var players = await _context.Players
+        return await _context.Players
             .Where(p => p.UniverseId == universeId)
             .Select(p => new PlayerListItemDto
             {
@@ -45,11 +46,9 @@ public class PlayersService
                 Name = p.Name
             })
             .ToListAsync();
-
-        return (true, string.Empty, players);
     }
 
-    public async Task<(bool success, string message, PlayerListItemDto? data)> GetByIdAsync(int id)
+    public async Task<PlayerListItemDto> GetByIdAsync(int id)
     {
         var player = await _context.Players
             .Where(p => p.Id == id)
@@ -61,34 +60,30 @@ public class PlayersService
             .FirstOrDefaultAsync();
 
         if (player == null)
-            return (false, "Jogador não encontrado", null);
+            throw new NotFoundException("Jogador não encontrado");
 
-        return (true, string.Empty, player);
+        return player;
     }
 
-    public async Task<(bool success, string message)> UpdateAsync(int id, UpdatePlayerDto dto)
+    public async Task UpdateAsync(int id, UpdatePlayerDto dto)
     {
         var player = await _context.Players.FindAsync(id);
 
         if (player == null)
-            return (false, "Jogador não encontrado");
+            throw new NotFoundException("Jogador não encontrado");
 
         player.Name = dto.Name;
         await _context.SaveChangesAsync();
-
-        return (true, "Jogador atualizado com sucesso");
     }
 
-    public async Task<(bool success, string message)> DeleteAsync(int id)
+    public async Task DeleteAsync(int id)
     {
         var player = await _context.Players.FindAsync(id);
 
         if (player == null)
-            return (false, "Jogador não encontrado");
+            throw new NotFoundException("Jogador não encontrado");
 
         _context.Players.Remove(player);
         await _context.SaveChangesAsync();
-
-        return (true, "Jogador excluído com sucesso");
     }
 }

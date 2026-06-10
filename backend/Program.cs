@@ -4,6 +4,7 @@ using MyCup.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using MyCup.Services.Authentication;
+using MyCup.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -76,6 +77,9 @@ builder.Services.AddSwaggerGen(
 );
 
 var app = builder.Build();
+
+// Global exception handling middleware (must run first to catch all exceptions).
+app.UseMiddleware<ExceptionMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

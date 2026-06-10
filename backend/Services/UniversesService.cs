@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MyCup.Data;
 using MyCup.DTOs.Championships;
 using MyCup.DTOs.Universe;
+using MyCup.Errors;
 using MyCup.Models;
 
 namespace MyCup.Services;
@@ -18,7 +19,7 @@ public class UniversesService
         _context = context;
     }
 
-    public async Task<(bool success, string message, int id)> CreateUniverseAsync(CreateUniverseDto dto)
+    public async Task<int> CreateUniverseAsync(CreateUniverseDto dto)
     {
         Universe universe = new()
         {
@@ -29,12 +30,12 @@ public class UniversesService
         _context.Universes.Add(universe);
         await _context.SaveChangesAsync();
 
-        return (true, "Universo criado com sucesso", universe.Id);
+        return universe.Id;
     }
 
-    public async Task<(bool success, string message, List<UniverseListItemDto> data)> GetAllAsync()
+    public async Task<List<UniverseListItemDto>> GetAllAsync()
     {
-        var universes = await _context.Universes
+        return await _context.Universes
             .Select(u => new UniverseListItemDto
             {
                 Id = u.Id,
@@ -44,11 +45,9 @@ public class UniversesService
                 ActiveChampionships = 0
             })
             .ToListAsync();
-
-        return (true, string.Empty, universes);
     }
 
-    public async Task<(bool success, string message, UniverseDetailDto? data)> GetByIdAsync(int id)
+    public async Task<UniverseDetailDto> GetByIdAsync(int id)
     {
         var universe = await _context.Universes
             .Include(u => u.Players)
@@ -60,7 +59,7 @@ public class UniversesService
             .FirstOrDefaultAsync(u => u.Id == id);
 
         if (universe == null)
-            return (false, "Universo não encontrado", null);
+            throw new NotFoundException("Universo não encontrado");
 
         var dto = new UniverseDetailDto
         {
@@ -85,32 +84,30 @@ public class UniversesService
             }).ToList()
         };
 
-        return (true, string.Empty, dto);
+        return dto;
     }
 
-    public async Task<(bool success, string message)> UpdateAsync(int id, UpdateUniverseDto dto)
+    public async Task UpdateAsync(int id, UpdateUniverseDto dto)
     {
         var universe = await _context.Universes.FindAsync(id);
 
         if (universe == null)
-            return (false, "Universo não encontrado");
+            throw new NotFoundException("Universo não encontrado");
 
         universe.Name = dto.Name;
         universe.Description = dto.Description;
 
         await _context.SaveChangesAsync();
-        return (true, "Universo atualizado com sucesso");
     }
 
-    public async Task<(bool success, string message)> DeleteAsync(int id)
+    public async Task DeleteAsync(int id)
     {
         var universe = await _context.Universes.FindAsync(id);
 
         if (universe == null)
-            return (false, "Universo não encontrado");
+            throw new NotFoundException("Universo não encontrado");
 
         _context.Universes.Remove(universe);
         await _context.SaveChangesAsync();
-        return (true, "Universo excluído com sucesso");
     }
 }

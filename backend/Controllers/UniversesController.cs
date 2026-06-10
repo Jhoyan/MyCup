@@ -20,87 +20,36 @@ namespace MyCup.Controllers
         [HttpGet]
         public async Task<ActionResult<List<UniverseListItemDto>>> GetAll()
         {
-            try
-            {
-                var (_, _, data) = await _universesService.GetAllAsync();
-                return Ok(data);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { erro = "Erro ao listar universos", detalhes = ex.Message });
-            }
+            var data = await _universesService.GetAllAsync();
+            return Ok(data);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<UniverseDetailDto>> GetById(int id)
         {
-            try
-            {
-                var (success, message, data) = await _universesService.GetByIdAsync(id);
-
-                if (!success)
-                    return NotFound(new { message });
-
-                return Ok(data);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { erro = "Erro ao buscar universo", detalhes = ex.Message });
-            }
+            var data = await _universesService.GetByIdAsync(id);
+            return Ok(data);
         }
 
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] CreateUniverseDto dto)
         {
-            try
-            {
-                var (success, message, id) = await _universesService.CreateUniverseAsync(dto);
-
-                if (!success)
-                    return BadRequest(new { message });
-
-                return CreatedAtAction(nameof(GetById), new { id }, new { id, message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { erro = "Erro ao criar universo", detalhes = ex.Message });
-            }
+            var id = await _universesService.CreateUniverseAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id }, new { id, message = "Universo criado com sucesso" });
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUniverseDto dto)
         {
-            try
-            {
-                var (success, message) = await _universesService.UpdateAsync(id, dto);
-
-                if (!success)
-                    return NotFound(new { message });
-
-                return Ok(new { message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { erro = "Erro ao atualizar universo", detalhes = ex.Message });
-            }
+            await _universesService.UpdateAsync(id, dto);
+            return Ok(new { message = "Universo atualizado com sucesso" });
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            try
-            {
-                var (success, message) = await _universesService.DeleteAsync(id);
-
-                if (!success)
-                    return NotFound(new { message });
-
-                return Ok(new { message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { erro = "Erro ao excluir universo", detalhes = ex.Message });
-            }
+            await _universesService.DeleteAsync(id);
+            return Ok(new { message = "Universo excluído com sucesso" });
         }
     }
 }
