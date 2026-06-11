@@ -13,10 +13,20 @@ public class Team
     public int Id { get; set; }
 
     /// <summary>
+    /// Foreign key identifying the universe that owns this team.
+    /// </summary>
+    public int UniverseId { get; set; }
+
+    /// <summary>
     /// Official display name of the team.
     /// </summary>
     [MaxLength(120)]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Navigation reference to the universe where the team is registered.
+    /// </summary>
+    public Universe Universe { get; set; } = null!;
 
     /// <summary>
     /// Championship association entries that include this team.

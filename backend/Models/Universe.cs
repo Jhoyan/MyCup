@@ -34,6 +34,11 @@ public class Universe
     public ICollection<Player> Players { get; set; } = new List<Player>();
 
     /// <summary>
+    /// Teams registered under this universe.
+    /// </summary>
+    public ICollection<Team> Teams { get; set; } = new List<Team>();
+
+    /// <summary>
     /// Championships organized under this universe.
     /// </summary>
     public ICollection<Championship> Championships { get; set; } = new List<Championship>();

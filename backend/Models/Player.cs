@@ -29,6 +29,12 @@ public class Player
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Indicates whether the player is active. Inactive players are soft-deleted: they keep their
+    /// championship history but are hidden from listings.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>
     /// Navigation reference to the linked user account when available.
     /// </summary>
     public User? User { get; set; }

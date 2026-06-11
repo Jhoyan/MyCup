@@ -140,6 +140,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany(x => x.Players)
             .HasForeignKey(x => x.UniverseId);
 
+        modelBuilder.Entity<Team>()
+            .HasOne(x => x.Universe)
+            .WithMany(x => x.Teams)
+            .HasForeignKey(x => x.UniverseId);
+
         modelBuilder.Entity<Championship>()
             .HasOne(x => x.Universe)
             .WithMany(x => x.Championships)
@@ -173,7 +178,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<PlayerChampionship>()
             .HasOne(x => x.Team)
             .WithMany(x => x.PlayerChampionships)
-            .HasForeignKey(x => x.TeamId);
+            .HasForeignKey(x => x.TeamId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<ChampionshipRule>()
             .HasOne(x => x.Championship)

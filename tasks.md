@@ -63,8 +63,6 @@
 > .NET 8 + EF Core + PostgreSQL + JWT. Hoje **só existe o `AuthController`**; vários DTOs e alguns services já estão prontos, faltam os controllers que os expõem.
 
 ### Epic A — Expor a API (controllers faltando)
-- [ ] **BE-001** 🔴 `UniversesController` (CRUD) — service pronto em [UniversesService.cs](backend/Services/UniversesService.cs).
-- [ ] **BE-002** 🔴 `PlayersController` (CRUD) — service pronto em [PlayersService.cs](backend/Services/PlayersService.cs).
 - [ ] **BE-003** 🔴 `ChampionshipsController` + `ChampionshipsService` (não existe) — DTOs prontos em [DTOs/Championships/](backend/DTOs/Championships/).
 - [ ] **BE-004** 🔴 `TeamsController` + service — DTOs em [DTOs/Teams/](backend/DTOs/Teams/).
 - [ ] **BE-005** 🔴 `MatchesController` + service: atualizar resultado e estatísticas — DTOs em [DTOs/Matches/](backend/DTOs/Matches/).

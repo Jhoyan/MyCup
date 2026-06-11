@@ -1,14 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MyCup.DTOs.Teams
+namespace MyCup.DTOs.Championships
 {
-    public class CreateTeamDto
+    public class UpdateChampionshipDto
     {
         [Required]
         [MaxLength(120)]
         public string Name { get; set; } = string.Empty;
 
         [Required]
-        public int UniverseId { get; set; }
+        public string Distribution { get; set; } = string.Empty;
     }
 }

@@ -39,7 +39,7 @@ public class PlayersService
     public async Task<List<PlayerListItemDto>> GetByUniverseAsync(int universeId)
     {
         return await _context.Players
-            .Where(p => p.UniverseId == universeId)
+            .Where(p => p.UniverseId == universeId && p.IsActive)
             .Select(p => new PlayerListItemDto
             {
                 Id = p.Id,
@@ -51,7 +51,7 @@ public class PlayersService
     public async Task<PlayerListItemDto> GetByIdAsync(int id)
     {
         var player = await _context.Players
-            .Where(p => p.Id == id)
+            .Where(p => p.Id == id && p.IsActive)
             .Select(p => new PlayerListItemDto
             {
                 Id = p.Id,
@@ -67,7 +67,7 @@ public class PlayersService
 
     public async Task UpdateAsync(int id, UpdatePlayerDto dto)
     {
-        var player = await _context.Players.FindAsync(id);
+        var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id && p.IsActive);
 
         if (player == null)
             throw new NotFoundException("Jogador não encontrado");
@@ -76,14 +76,17 @@ public class PlayersService
         await _context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Soft-deletes a player by marking it inactive, preserving its championship history.
+    /// </summary>
     public async Task DeleteAsync(int id)
     {
-        var player = await _context.Players.FindAsync(id);
+        var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id && p.IsActive);
 
         if (player == null)
             throw new NotFoundException("Jogador não encontrado");
 
-        _context.Players.Remove(player);
+        player.IsActive = false;
         await _context.SaveChangesAsync();
     }
 }

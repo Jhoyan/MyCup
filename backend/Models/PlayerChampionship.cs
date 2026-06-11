@@ -22,8 +22,9 @@ public class PlayerChampionship
 
     /// <summary>
     /// Foreign key identifying the team assigned to the player in this championship.
+    /// Null while the player is enrolled but has not yet been assigned a team (pending draw).
     /// </summary>
-    public int TeamId { get; set; }
+    public int? TeamId { get; set; }
 
     /// <summary>
     /// Navigation reference to the related player.
@@ -36,7 +37,7 @@ public class PlayerChampionship
     public Championship Championship { get; set; } = null!;
 
     /// <summary>
-    /// Navigation reference to the assigned team.
+    /// Navigation reference to the assigned team, when one has been assigned.
     /// </summary>
-    public Team Team { get; set; } = null!;
+    public Team? Team { get; set; }
 }
