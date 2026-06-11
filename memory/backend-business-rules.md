@@ -26,3 +26,14 @@ Business rules agreed for the MyCup backend (services/controllers), decided 2026
 - **Dashboard (BE-006):** scoped to the **logged-in user's universes** (via UserUniverse; userId from JWT `sub`/NameIdentifier claim). "Pending" = anything not finished: PendingChampionships = draft or ongoing; PendingMatches = scheduled or ongoing. A championship is "finished" only if it has matches and all are finished. Top players (MostWins/MostGoals/MostLosses) aggregate per player from finished matches via PlayerChampionship team mapping.
 
 Implementation order (done): Team → Championship → Match → UserUniverse → Dashboard. See [[backend-architecture-patterns]].
+
+## BE-008 fixture generation (in progress)
+
+Full design lives in `docs/be-008-fixtures.md` — read it before working on fixtures. Key points:
+- Trigger: `POST /championships/{id}/generate`; configs sent in the body and persisted as `ChampionshipRule` KV. Regenerate only while all matches are `scheduled`; pool locked once any match is ongoing/finished.
+- Formats: `round_robin` (single/`double_round`, bye for odd), `knockout` (power-of-two + bye, random draw, single-leg, penalties, auto-advance, optional third place, optional **double elimination**), `groups_knockout` (random group draw, single/double round robin, top-N advance, configurable `bracket_seeding`).
+- No extra-time entity — record only the final score; penalties decide drawn knockout ties.
+- **Data model changes for fixtures:** `Match.HomePenalties`/`Match.AwayPenalties` (int?), `Match.GroupId` (int? FK Group), `Round.Bracket` (string?: upper/lower/grand_final/third_place). Team FKs stay required; generation is round-by-round.
+- Tie-breakers (ordered, pluggable): points → GD → GF → wins → head-to-head(post-MVP) → draw of lots.
+- Double elimination: ship single elimination first, then double; MVP grand final is single (no bracket reset).
+- **Post-MVP backlog (architecture must already accommodate):** two-legged knockout + away goals; best-third-placed / WC 48→32; group draw by pots/manual; head-to-head tiebreaker; custom explicit bracket-seeding table; double-elim grand-final bracket reset. See [[be-008-fixtures-doc]].

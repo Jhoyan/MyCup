@@ -29,6 +29,13 @@ public class Round
     public string? Name { get; set; }
 
     /// <summary>
+    /// Bracket this round belongs to, for elimination phases. Null for league/group rounds.
+    /// Values: "upper", "lower", "grand_final", "third_place".
+    /// </summary>
+    [MaxLength(20)]
+    public string? Bracket { get; set; }
+
+    /// <summary>
     /// Navigation reference to the related phase.
     /// </summary>
     public Phase Phase { get; set; } = null!;

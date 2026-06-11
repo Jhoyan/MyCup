@@ -32,4 +32,9 @@ public class Group
     /// Team allocation entries associated with this group.
     /// </summary>
     public ICollection<GroupTeam> GroupTeams { get; set; } = new List<GroupTeam>();
+
+    /// <summary>
+    /// Matches played within this group (group-stage matches of the groups_knockout format).
+    /// </summary>
+    public ICollection<Match> Matches { get; set; } = new List<Match>();
 }

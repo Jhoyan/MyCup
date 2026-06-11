@@ -217,6 +217,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(x => x.RoundId);
 
         modelBuilder.Entity<Match>()
+            .HasOne(x => x.Group)
+            .WithMany(x => x.Matches)
+            .HasForeignKey(x => x.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Match>()
             .HasOne(x => x.HomeTeam)
             .WithMany(x => x.HomeMatches)
             .HasForeignKey(x => x.HomeTeamId)
