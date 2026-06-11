@@ -21,4 +21,8 @@ Business rules agreed for the MyCup backend (services/controllers), decided 2026
   - Player → soft delete (add `IsActive` to Player + migration; hide from listings).
   - Team → block with 409 Conflict if referenced by ChampionshipTeam / GroupTeam / Match.
 
-Implementation order: Team → Championship → Match → UserUniverse → Dashboard. See [[backend-architecture-patterns]].
+- **No individual player stats:** the game is PES/FIFA where 1 player controls 1 full team, so there is NO per-player goals/assists/cards/fouls/corners — those concepts are out of scope. Any "player metric" is really the metric of the team that player controlled, derived only from match results.
+- **Player vs user stat aggregation:** a player uses a (possibly) different team per championship; all goals/wins/losses controlling that team roll up to the **player profile within its universe** (summed across that universe's championships). If the player has a linked `User`, those stats also feed the **user's** cross-universe numbers/average (a user can link multiple player profiles across different universes).
+- **Dashboard (BE-006):** scoped to the **logged-in user's universes** (via UserUniverse; userId from JWT `sub`/NameIdentifier claim). "Pending" = anything not finished: PendingChampionships = draft or ongoing; PendingMatches = scheduled or ongoing. A championship is "finished" only if it has matches and all are finished. Top players (MostWins/MostGoals/MostLosses) aggregate per player from finished matches via PlayerChampionship team mapping.
+
+Implementation order (done): Team → Championship → Match → UserUniverse → Dashboard. See [[backend-architecture-patterns]].
