@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MyCup.Data;
 using MyCup.Services;
+using MyCup.Services.Fixtures;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using MyCup.Services.Authentication;
@@ -46,6 +47,10 @@ builder.Services.AddScoped<ChampionshipsService>();
 builder.Services.AddScoped<MatchesService>();
 builder.Services.AddScoped<UserUniversesService>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<FixturesService>();
+builder.Services.AddScoped<IFixtureGenerator, RoundRobinFixtureGenerator>();
+builder.Services.AddScoped<IFixtureGenerator, KnockoutFixtureGenerator>();
+builder.Services.AddScoped<IFixtureGenerator, GroupsKnockoutFixtureGenerator>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

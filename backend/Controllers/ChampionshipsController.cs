@@ -13,10 +13,12 @@ namespace MyCup.Controllers
     public class ChampionshipsController : ControllerBase
     {
         private readonly ChampionshipsService _championshipsService;
+        private readonly FixturesService _fixturesService;
 
-        public ChampionshipsController(ChampionshipsService championshipsService)
+        public ChampionshipsController(ChampionshipsService championshipsService, FixturesService fixturesService)
         {
             _championshipsService = championshipsService;
+            _fixturesService = fixturesService;
         }
 
         // ----- Championship CRUD -----
@@ -54,6 +56,13 @@ namespace MyCup.Controllers
         {
             await _championshipsService.DeleteAsync(id);
             return Ok(new { message = "Campeonato excluído com sucesso" });
+        }
+
+        [HttpPost("{id}/generate")]
+        public async Task<IActionResult> Generate(int id, [FromBody] GenerateChampionshipDto? dto)
+        {
+            await _fixturesService.GenerateAsync(id, dto ?? new GenerateChampionshipDto());
+            return Ok(new { message = "Chaveamento gerado com sucesso" });
         }
 
         // ----- Team pool -----

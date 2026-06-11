@@ -178,6 +178,8 @@ public class ChampionshipsService
         if (championship == null)
             throw new NotFoundException("Campeonato não encontrado");
 
+        await EnsurePoolEditableAsync(championshipId);
+
         int teamId;
 
         if (dto.TeamId.HasValue)
@@ -232,6 +234,8 @@ public class ChampionshipsService
 
         if (link == null)
             throw new NotFoundException("Time não encontrado neste campeonato");
+
+        await EnsurePoolEditableAsync(championshipId);
 
         var assignedToPlayer = await _context.PlayerChampionships
             .AnyAsync(pc => pc.ChampionshipId == championshipId && pc.TeamId == teamId);
@@ -435,6 +439,17 @@ public class ChampionshipsService
         var exists = await _context.Championships.AnyAsync(c => c.Id == championshipId);
         if (!exists)
             throw new NotFoundException("Campeonato não encontrado");
+    }
+
+    /// <summary>
+    /// Blocks changes to the team pool once any match of the championship is ongoing or finished.
+    /// </summary>
+    private async Task EnsurePoolEditableAsync(int championshipId)
+    {
+        var locked = await _context.Matches
+            .AnyAsync(m => m.Round.Phase.ChampionshipId == championshipId && m.Status != "scheduled");
+        if (locked)
+            throw new ConflictException("O pool de times não pode ser alterado: já há partidas em andamento ou finalizadas");
     }
 
     /// <summary>
