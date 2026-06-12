@@ -70,23 +70,35 @@ public class FixturesService
     }
 
     /// <summary>
-    /// Called after a knockout match result is saved. Fills (or, on a reverted result, clears) the team
-    /// slots of any match fed by this one, so the bracket stays consistent and downstream matches become
-    /// playable as soon as their two feeders are decided. Does nothing for league/group matches.
-    /// A dependent that already has a result of its own is left untouched.
+    /// Called after a match result is saved, to keep a generated bracket consistent. For a knockout match
+    /// it fills (or clears, on a reverted result) the slots of any match fed by its winner/loser; for a
+    /// group-stage match it fills the knockout slots seeded from that group once the group is decided.
+    /// Does nothing for a plain league match. Dependents that already have a result are left untouched.
     /// </summary>
-    public async Task PropagateKnockoutResultAsync(int matchId)
+    public async Task PropagateResultAsync(int matchId)
     {
         var match = await _context.Matches
             .Include(m => m.Round)
                 .ThenInclude(r => r.Phase)
             .FirstOrDefaultAsync(m => m.Id == matchId);
 
-        if (match == null || match.Round.Phase.Type != "knockout")
+        if (match == null)
             return;
 
+        if (match.Round.Phase.Type == "knockout")
+            await PropagateKnockoutSlotsAsync(match);
+        else if (match.Round.Phase.Type == "groups" && match.GroupId is int groupId)
+            await PropagateGroupQualifiersAsync(groupId, match.Round.Phase.ChampionshipId);
+    }
+
+    /// <summary>
+    /// Fills (or clears) the team slots of any match fed by this knockout match's winner/loser so the
+    /// bracket stays consistent and downstream matches become playable once both their feeders are decided.
+    /// </summary>
+    private async Task PropagateKnockoutSlotsAsync(Match match)
+    {
         var dependents = await _context.Matches
-            .Where(m => m.HomeSourceMatchId == matchId || m.AwaySourceMatchId == matchId)
+            .Where(m => m.HomeSourceMatchId == match.Id || m.AwaySourceMatchId == match.Id)
             .ToListAsync();
 
         if (dependents.Count == 0)
@@ -103,10 +115,53 @@ public class FixturesService
             if (dependent.Status != "scheduled")
                 continue;
 
-            if (dependent.HomeSourceMatchId == matchId)
+            if (dependent.HomeSourceMatchId == match.Id)
                 dependent.HomeTeamId = SlotTeam(dependent.HomeSourceOutcome, winner, loser);
-            if (dependent.AwaySourceMatchId == matchId)
+            if (dependent.AwaySourceMatchId == match.Id)
                 dependent.AwayTeamId = SlotTeam(dependent.AwaySourceOutcome, winner, loser);
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Once every match of a group is finished, ranks the group and fills the knockout slots seeded from
+    /// it (by 1-based position). While the group is still incomplete those slots are cleared, so reverting
+    /// a group result keeps the bracket consistent.
+    /// </summary>
+    private async Task PropagateGroupQualifiersAsync(int groupId, int championshipId)
+    {
+        var dependents = await _context.Matches
+            .Where(m => m.HomeSourceGroupId == groupId || m.AwaySourceGroupId == groupId)
+            .ToListAsync();
+
+        if (dependents.Count == 0)
+            return;
+
+        var groupMatches = await _context.Matches
+            .Where(m => m.GroupId == groupId)
+            .ToListAsync();
+
+        List<int>? ranking = null;
+        if (groupMatches.All(m => m.Status == "finished"))
+        {
+            var teamIds = await _context.GroupTeams
+                .Where(gt => gt.GroupId == groupId)
+                .Select(gt => gt.TeamId)
+                .ToListAsync();
+            var (winPoints, drawPoints) = await GetPointsRulesAsync(championshipId);
+            ranking = RankGroup(teamIds, groupMatches, winPoints, drawPoints);
+        }
+
+        foreach (var dependent in dependents)
+        {
+            if (dependent.Status != "scheduled")
+                continue;
+
+            if (dependent.HomeSourceGroupId == groupId)
+                dependent.HomeTeamId = SlotTeamFromGroup(ranking, dependent.HomeSourceGroupRank);
+            if (dependent.AwaySourceGroupId == groupId)
+                dependent.AwayTeamId = SlotTeamFromGroup(ranking, dependent.AwaySourceGroupRank);
         }
 
         await _context.SaveChangesAsync();
@@ -121,6 +176,76 @@ public class FixturesService
         if (winner == null)
             return null;
         return outcome == KnockoutEngine.Loser ? loser : winner;
+    }
+
+    /// <summary>The team at the given 1-based group position, or null while the group is undecided.</summary>
+    private static int? SlotTeamFromGroup(List<int>? ranking, int? rank)
+    {
+        if (ranking == null || rank is not int position || position < 1 || position > ranking.Count)
+            return null;
+        return ranking[position - 1];
+    }
+
+    /// <summary>Reads the championship's win/draw point rules, defaulting to 3 and 1.</summary>
+    private async Task<(int WinPoints, int DrawPoints)> GetPointsRulesAsync(int championshipId)
+    {
+        var rules = await _context.ChampionshipRules
+            .Where(r => r.ChampionshipId == championshipId && (r.Key == "win_points" || r.Key == "draw_points"))
+            .ToListAsync();
+
+        int win = ParseRule(rules, "win_points", 3);
+        int draw = ParseRule(rules, "draw_points", 1);
+        return (win, draw);
+
+        static int ParseRule(List<ChampionshipRule> rules, string key, int fallback)
+        {
+            var rule = rules.FirstOrDefault(r => r.Key == key);
+            return rule != null && int.TryParse(rule.Value, out var value) ? value : fallback;
+        }
+    }
+
+    /// <summary>
+    /// Ranks the teams of a group from its finished matches. Order: points, goal difference, goals for,
+    /// wins, then team id as a deterministic final tiebreak.
+    /// </summary>
+    private static List<int> RankGroup(List<int> teamIds, List<Match> matches, int winPoints, int drawPoints)
+    {
+        var rows = teamIds.ToDictionary(id => id, id => new GroupRow { TeamId = id });
+
+        foreach (var match in matches.Where(m => m.Status == "finished"))
+        {
+            if (match.HomeTeamId is not int home || match.AwayTeamId is not int away)
+                continue;
+            if (!rows.TryGetValue(home, out var homeRow) || !rows.TryGetValue(away, out var awayRow))
+                continue;
+
+            homeRow.GoalsFor += match.HomeGoals;
+            homeRow.GoalsAgainst += match.AwayGoals;
+            awayRow.GoalsFor += match.AwayGoals;
+            awayRow.GoalsAgainst += match.HomeGoals;
+
+            if (match.HomeGoals > match.AwayGoals) { homeRow.Points += winPoints; homeRow.Wins++; }
+            else if (match.AwayGoals > match.HomeGoals) { awayRow.Points += winPoints; awayRow.Wins++; }
+            else { homeRow.Points += drawPoints; awayRow.Points += drawPoints; }
+        }
+
+        return rows.Values
+            .OrderByDescending(r => r.Points)
+            .ThenByDescending(r => r.GoalsFor - r.GoalsAgainst)
+            .ThenByDescending(r => r.GoalsFor)
+            .ThenByDescending(r => r.Wins)
+            .ThenBy(r => r.TeamId)
+            .Select(r => r.TeamId)
+            .ToList();
+    }
+
+    private sealed class GroupRow
+    {
+        public int TeamId { get; init; }
+        public int Points { get; set; }
+        public int GoalsFor { get; set; }
+        public int GoalsAgainst { get; set; }
+        public int Wins { get; set; }
     }
 
     /// <summary>

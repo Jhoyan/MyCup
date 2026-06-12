@@ -255,5 +255,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(x => x.AwaySourceMatchId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Group-position seeding for the groups_knockout knockout phase (no inverse navigation; the
+        // group's Matches collection is reserved for its own group-stage matches via Match.GroupId).
+        modelBuilder.Entity<Match>()
+            .HasOne(x => x.HomeSourceGroup)
+            .WithMany()
+            .HasForeignKey(x => x.HomeSourceGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Match>()
+            .HasOne(x => x.AwaySourceGroup)
+            .WithMany()
+            .HasForeignKey(x => x.AwaySourceGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
     }
 }

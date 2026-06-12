@@ -26,6 +26,24 @@ public class RoundRobinFixtureGenerator : IFixtureGenerator
 
     private static List<Round> BuildRounds(List<int> teamIds, bool doubleRound)
     {
+        var rounds = new List<Round>();
+        var matchdays = BuildMatchdays(teamIds, doubleRound);
+        for (int i = 0; i < matchdays.Count; i++)
+        {
+            var round = new Round { Number = i + 1 };
+            foreach (var match in matchdays[i])
+                round.Matches.Add(match);
+            rounds.Add(round);
+        }
+        return rounds;
+    }
+
+    /// <summary>
+    /// Builds the round-robin schedule as a list of matchdays (each a list of matches) using the circle
+    /// method, with an optional return leg. Reused by the groups_knockout generator to schedule each group.
+    /// </summary>
+    public static List<List<Match>> BuildMatchdays(List<int> teamIds, bool doubleRound)
+    {
         // Circle method: a null entry represents the bye when the team count is odd.
         var slots = new List<int?>(teamIds.Select(t => (int?)t));
         if (slots.Count % 2 != 0)
@@ -35,11 +53,11 @@ public class RoundRobinFixtureGenerator : IFixtureGenerator
         int roundsPerLeg = n - 1;
         int half = n / 2;
 
-        var rounds = new List<Round>();
+        var matchdays = new List<List<Match>>();
 
         for (int r = 0; r < roundsPerLeg; r++)
         {
-            var round = new Round { Number = r + 1 };
+            var matchday = new List<Match>();
 
             for (int i = 0; i < half; i++)
             {
@@ -53,27 +71,22 @@ public class RoundRobinFixtureGenerator : IFixtureGenerator
                     ? (first.Value, second.Value)
                     : (second.Value, first.Value);
 
-                round.Matches.Add(NewMatch(home, away));
+                matchday.Add(NewMatch(home, away));
             }
 
-            rounds.Add(round);
+            matchdays.Add(matchday);
             Rotate(slots);
         }
 
         if (doubleRound)
         {
-            var secondLeg = rounds.Select(rd =>
-            {
-                var mirrored = new Round { Number = rd.Number + roundsPerLeg };
-                foreach (var m in rd.Matches)
-                    mirrored.Matches.Add(NewMatch(m.AwayTeamId!.Value, m.HomeTeamId!.Value));
-                return mirrored;
-            }).ToList();
-
-            rounds.AddRange(secondLeg);
+            var secondLeg = matchdays
+                .Select(day => day.Select(m => NewMatch(m.AwayTeamId!.Value, m.HomeTeamId!.Value)).ToList())
+                .ToList();
+            matchdays.AddRange(secondLeg);
         }
 
-        return rounds;
+        return matchdays;
     }
 
     /// <summary>Rotates all slots clockwise while keeping the first slot fixed (circle method).</summary>

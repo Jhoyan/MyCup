@@ -85,7 +85,8 @@ public class MatchesService
 
         await _context.SaveChangesAsync();
 
-        // Fill (or, on a reverted result, clear) the slots of any knockout match fed by this one.
-        await _fixturesService.PropagateKnockoutResultAsync(id);
+        // Keep a generated bracket consistent: fill/clear the slots of any match fed by this result
+        // (knockout winner/loser, or group qualifiers once the group is decided).
+        await _fixturesService.PropagateResultAsync(id);
     }
 }

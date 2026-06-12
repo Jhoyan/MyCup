@@ -51,7 +51,30 @@ public static class KnockoutEngine
             byeTeams.Select(t => (Advancer)new TeamAdvancer(t)).ToList(),
             winners);
 
-        int number = 2;
+        rounds.AddRange(BuildAdvancement(current, startNumber: 2, thirdPlace));
+        return rounds;
+    }
+
+    /// <summary>
+    /// Builds the advancement rounds (next round onward) from a set of opening-round matches whose winners
+    /// advance, plus an optional third-place match. Used when the opening round is built elsewhere — e.g.
+    /// the groups_knockout knockout phase, whose first round is seeded from group standings.
+    /// </summary>
+    public static List<Round> BuildAdvancementFromMatches(List<Match> firstRoundMatches, int startNumber, bool thirdPlace)
+    {
+        var advancers = firstRoundMatches.Select(m => (Advancer)new WinnerAdvancer(m)).ToList();
+        return BuildAdvancement(advancers, startNumber, thirdPlace);
+    }
+
+    /// <summary>
+    /// Pairs the current advancers round by round (winner-linked) until a single match remains, then adds
+    /// an optional third-place match fed by the two losing semifinalists.
+    /// </summary>
+    private static List<Round> BuildAdvancement(List<Advancer> current, int startNumber, bool thirdPlace)
+    {
+        var rounds = new List<Round>();
+        int number = startNumber;
+
         while (current.Count > 1)
         {
             var round = new Round { Number = number, Name = NameForTeams(current.Count) };
@@ -69,19 +92,20 @@ public static class KnockoutEngine
             number++;
         }
 
-        // The last round always holds exactly one match: the final.
-        var finalRound = rounds[^1];
-        var finalMatch = finalRound.Matches.First();
+        if (rounds.Count == 0)
+            return rounds;
 
+        // The last round always holds exactly one match: the final.
+        var finalMatch = rounds[^1].Matches.First();
         if (thirdPlace && finalMatch.HomeSourceMatch != null && finalMatch.AwaySourceMatch != null)
         {
             var thirdPlaceRound = new Round
             {
-                Number = finalRound.Number,
+                Number = rounds[^1].Number,
                 Name = "Disputa de 3º lugar",
                 Bracket = "third_place"
             };
-            var match = new Match
+            thirdPlaceRound.Matches.Add(new Match
             {
                 Status = "scheduled",
                 Date = DateTime.UtcNow,
@@ -89,8 +113,7 @@ public static class KnockoutEngine
                 HomeSourceOutcome = Loser,
                 AwaySourceMatch = finalMatch.AwaySourceMatch,
                 AwaySourceOutcome = Loser
-            };
-            thirdPlaceRound.Matches.Add(match);
+            });
             rounds.Add(thirdPlaceRound);
         }
 

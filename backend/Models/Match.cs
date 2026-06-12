@@ -54,6 +54,28 @@ public class Match
     public string? AwaySourceOutcome { get; set; }
 
     /// <summary>
+    /// In a groups_knockout bracket, the group whose final standings feed this match's home slot. Null
+    /// unless the home slot is seeded from a group position.
+    /// </summary>
+    public int? HomeSourceGroupId { get; set; }
+
+    /// <summary>
+    /// In a groups_knockout bracket, the group whose final standings feed this match's away slot.
+    /// </summary>
+    public int? AwaySourceGroupId { get; set; }
+
+    /// <summary>
+    /// 1-based final position within <see cref="HomeSourceGroupId"/> that advances into the home slot
+    /// (1 = group winner, 2 = runner-up). Null when the home slot is not seeded from a group.
+    /// </summary>
+    public int? HomeSourceGroupRank { get; set; }
+
+    /// <summary>
+    /// 1-based final position within <see cref="AwaySourceGroupId"/> that advances into the away slot.
+    /// </summary>
+    public int? AwaySourceGroupRank { get; set; }
+
+    /// <summary>
     /// Number of goals scored by the home team.
     /// </summary>
     public int HomeGoals { get; set; }
@@ -121,4 +143,14 @@ public class Match
     /// Navigation reference to the match feeding this match's away slot, if any.
     /// </summary>
     public Match? AwaySourceMatch { get; set; }
+
+    /// <summary>
+    /// Navigation reference to the group seeding this match's home slot, if any.
+    /// </summary>
+    public Group? HomeSourceGroup { get; set; }
+
+    /// <summary>
+    /// Navigation reference to the group seeding this match's away slot, if any.
+    /// </summary>
+    public Group? AwaySourceGroup { get; set; }
 }
