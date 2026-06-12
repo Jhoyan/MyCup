@@ -98,6 +98,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<ChampionshipTeam>().ToTable("championship_teams");
         modelBuilder.Entity<PlayerChampionship>().ToTable("player_championships");
         modelBuilder.Entity<Format>().ToTable("formats");
+
+        // Seed the supported championship formats. Their Type values are the keys the fixture generators
+        // are registered under (see Program.cs / IFixtureGenerator.Format), so they must match exactly.
+        modelBuilder.Entity<Format>().HasData(
+            new Format { Id = 1, Type = "round_robin" },
+            new Format { Id = 2, Type = "knockout" },
+            new Format { Id = 3, Type = "groups_knockout" });
         modelBuilder.Entity<ChampionshipRule>().ToTable("championship_rules");
         modelBuilder.Entity<Phase>().ToTable("phases");
         modelBuilder.Entity<Group>().ToTable("groups");
