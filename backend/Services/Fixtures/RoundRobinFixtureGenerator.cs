@@ -66,7 +66,7 @@ public class RoundRobinFixtureGenerator : IFixtureGenerator
             {
                 var mirrored = new Round { Number = rd.Number + roundsPerLeg };
                 foreach (var m in rd.Matches)
-                    mirrored.Matches.Add(NewMatch(m.AwayTeamId, m.HomeTeamId));
+                    mirrored.Matches.Add(NewMatch(m.AwayTeamId!.Value, m.HomeTeamId!.Value));
                 return mirrored;
             }).ToList();
 

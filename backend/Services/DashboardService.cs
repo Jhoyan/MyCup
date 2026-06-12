@@ -154,8 +154,8 @@ public class DashboardService
                 Id = m.Id,
                 Championship = m.Round.Phase.Championship.Name,
                 Round = m.Round.Name ?? ("Rodada " + m.Round.Number),
-                HomeTeam = m.HomeTeam.Name,
-                AwayTeam = m.AwayTeam.Name,
+                HomeTeam = m.HomeTeam!.Name,
+                AwayTeam = m.AwayTeam!.Name,
                 HomeGoals = m.HomeGoals,
                 AwayGoals = m.AwayGoals,
                 Date = m.Date
@@ -167,11 +167,13 @@ public class DashboardService
         Dictionary<int, PlayerAggregate> stats,
         Dictionary<(int, int), (int PlayerId, string PlayerName)> teamToPlayer,
         int championshipId,
-        int teamId,
+        int? teamId,
         int goalsFor,
         int goalsAgainst)
     {
-        if (!teamToPlayer.TryGetValue((championshipId, teamId), out var player))
+        if (teamId is not int team)
+            return;
+        if (!teamToPlayer.TryGetValue((championshipId, team), out var player))
             return;
 
         if (!stats.TryGetValue(player.PlayerId, out var agg))

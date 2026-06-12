@@ -559,8 +559,10 @@ public class ChampionshipsService
 
         foreach (var match in finishedMatches)
         {
-            if (!rows.TryGetValue(match.HomeTeamId, out var home) ||
-                !rows.TryGetValue(match.AwayTeamId, out var away))
+            if (match.HomeTeamId is not int homeId || match.AwayTeamId is not int awayId)
+                continue;
+            if (!rows.TryGetValue(homeId, out var home) ||
+                !rows.TryGetValue(awayId, out var away))
                 continue;
 
             home.Played++;
@@ -622,10 +624,12 @@ public class ChampionshipsService
                 Matches = r.Matches.Select(m => new MatchSummaryDto
                 {
                     Id = m.Id,
-                    HomeTeam = m.HomeTeam.Name,
-                    AwayTeam = m.AwayTeam.Name,
+                    HomeTeam = m.HomeTeam != null ? m.HomeTeam.Name : null,
+                    AwayTeam = m.AwayTeam != null ? m.AwayTeam.Name : null,
                     HomeGoals = m.Status == "scheduled" ? null : m.HomeGoals,
                     AwayGoals = m.Status == "scheduled" ? null : m.AwayGoals,
+                    HomePenalties = m.HomePenalties,
+                    AwayPenalties = m.AwayPenalties,
                     Status = m.Status,
                     Date = m.Date
                 }).ToList()

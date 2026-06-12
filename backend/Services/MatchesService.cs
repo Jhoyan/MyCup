@@ -20,10 +20,12 @@ public class MatchesService
     };
 
     private readonly AppDbContext _context;
+    private readonly FixturesService _fixturesService;
 
-    public MatchesService(AppDbContext context)
+    public MatchesService(AppDbContext context, FixturesService fixturesService)
     {
         _context = context;
+        _fixturesService = fixturesService;
     }
 
     public async Task<MatchSummaryDto> GetByIdAsync(int id)
@@ -33,10 +35,12 @@ public class MatchesService
             .Select(m => new MatchSummaryDto
             {
                 Id = m.Id,
-                HomeTeam = m.HomeTeam.Name,
-                AwayTeam = m.AwayTeam.Name,
+                HomeTeam = m.HomeTeam != null ? m.HomeTeam.Name : null,
+                AwayTeam = m.AwayTeam != null ? m.AwayTeam.Name : null,
                 HomeGoals = m.Status == "scheduled" ? (int?)null : m.HomeGoals,
                 AwayGoals = m.Status == "scheduled" ? (int?)null : m.AwayGoals,
+                HomePenalties = m.HomePenalties,
+                AwayPenalties = m.AwayPenalties,
                 Status = m.Status,
                 Date = m.Date
             })
@@ -64,11 +68,24 @@ public class MatchesService
 
         var status = dto.Status.ToLowerInvariant();
 
+        // A knockout slot can be empty until its feeder match resolves; it can't be played meanwhile.
+        if (status != "scheduled" && (match.HomeTeamId == null || match.AwayTeamId == null))
+            throw new BadRequestException("Os times desta partida ainda não foram definidos");
+
         // A scheduled match has no score yet.
         match.HomeGoals = status == "scheduled" ? 0 : dto.HomeGoals;
         match.AwayGoals = status == "scheduled" ? 0 : dto.AwayGoals;
+
+        // Penalties only make sense for a finished, drawn knockout tie; clear them otherwise.
+        var drawn = status == "finished" && dto.HomeGoals == dto.AwayGoals;
+        match.HomePenalties = drawn ? dto.HomePenalties : null;
+        match.AwayPenalties = drawn ? dto.AwayPenalties : null;
+
         match.Status = status;
 
         await _context.SaveChangesAsync();
+
+        // Fill (or, on a reverted result, clear) the slots of any knockout match fed by this one.
+        await _fixturesService.PropagateKnockoutResultAsync(id);
     }
 }

@@ -70,6 +70,60 @@ public class FixturesService
     }
 
     /// <summary>
+    /// Called after a knockout match result is saved. Fills (or, on a reverted result, clears) the team
+    /// slots of any match fed by this one, so the bracket stays consistent and downstream matches become
+    /// playable as soon as their two feeders are decided. Does nothing for league/group matches.
+    /// A dependent that already has a result of its own is left untouched.
+    /// </summary>
+    public async Task PropagateKnockoutResultAsync(int matchId)
+    {
+        var match = await _context.Matches
+            .Include(m => m.Round)
+                .ThenInclude(r => r.Phase)
+            .FirstOrDefaultAsync(m => m.Id == matchId);
+
+        if (match == null || match.Round.Phase.Type != "knockout")
+            return;
+
+        var dependents = await _context.Matches
+            .Where(m => m.HomeSourceMatchId == matchId || m.AwaySourceMatchId == matchId)
+            .ToListAsync();
+
+        if (dependents.Count == 0)
+            return;
+
+        // A finished match feeds a winner/loser forward; otherwise the slots it fed must be cleared.
+        int? winner = null, loser = null;
+        if (match.Status == "finished")
+            (winner, loser) = KnockoutEngine.ResolveWinner(match);
+
+        foreach (var dependent in dependents)
+        {
+            // Never overwrite a dependent that has already been played.
+            if (dependent.Status != "scheduled")
+                continue;
+
+            if (dependent.HomeSourceMatchId == matchId)
+                dependent.HomeTeamId = SlotTeam(dependent.HomeSourceOutcome, winner, loser);
+            if (dependent.AwaySourceMatchId == matchId)
+                dependent.AwayTeamId = SlotTeam(dependent.AwaySourceOutcome, winner, loser);
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// The team that should occupy a slot fed by a source match: the winner or loser per the slot's
+    /// configured outcome, or null when the source is no longer decided (so the slot is emptied).
+    /// </summary>
+    private static int? SlotTeam(string? outcome, int? winner, int? loser)
+    {
+        if (winner == null)
+            return null;
+        return outcome == KnockoutEngine.Loser ? loser : winner;
+    }
+
+    /// <summary>
     /// Upserts the configuration actually used into ChampionshipRule, recording only the keys relevant
     /// to the championship's format.
     /// </summary>
