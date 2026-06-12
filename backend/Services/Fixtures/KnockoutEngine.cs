@@ -98,6 +98,127 @@ public static class KnockoutEngine
     }
 
     /// <summary>
+    /// Builds the full double-elimination bracket: a winners bracket (<c>Bracket = "upper"</c>), a losers
+    /// bracket (<c>"lower"</c>) that each upper-bracket loser drops into, and a single grand final
+    /// (<c>"grand_final"</c>) between the two bracket winners (MVP: no bracket reset). Like the single
+    /// elimination builder, every match exists up front with its slots linked to the matches that feed
+    /// them, so results can be recorded in any order. Requires a power-of-two team count (no byes yet).
+    /// </summary>
+    public static List<Round> BuildDoubleEliminationBracket(List<int> teamIds)
+    {
+        if (teamIds.Count < 2)
+            throw new BadRequestException("São necessários pelo menos 2 times para gerar o campeonato");
+        if ((teamIds.Count & (teamIds.Count - 1)) != 0)
+            throw new BadRequestException("A dupla eliminação requer um número de times igual a uma potência de 2 (2, 4, 8, 16, ...)");
+
+        var draw = Shuffle(teamIds);
+        int n = draw.Count;
+        int k = 0;
+        while ((1 << k) < n) k++; // n == 2^k
+
+        var rounds = new List<Round>();
+        var number = 1;
+
+        // ----- Winners bracket -----
+        var winnersByRound = new List<List<Match>>();
+
+        var wb1 = new Round { Number = number++, Name = WinnersRoundName(1, k), Bracket = "upper" };
+        var wb1Matches = new List<Match>();
+        for (int i = 0; i < n; i += 2)
+        {
+            var match = NewMatch(draw[i], draw[i + 1]);
+            wb1.Matches.Add(match);
+            wb1Matches.Add(match);
+        }
+        rounds.Add(wb1);
+        winnersByRound.Add(wb1Matches);
+
+        for (int r = 2; r <= k; r++)
+        {
+            var previous = winnersByRound[r - 2];
+            var round = new Round { Number = number++, Name = WinnersRoundName(r, k), Bracket = "upper" };
+            var current = new List<Match>();
+            for (int i = 0; i < previous.Count; i += 2)
+            {
+                var match = LinkedMatch(previous[i], Winner, previous[i + 1], Winner);
+                round.Matches.Add(match);
+                current.Add(match);
+            }
+            rounds.Add(round);
+            winnersByRound.Add(current);
+        }
+        var winnersFinal = winnersByRound[k - 1][0];
+
+        // ----- Losers bracket -----
+        Match losersSource;
+        string losersOutcome;
+
+        if (k == 1)
+        {
+            // Only two teams: the single loss sends a team straight to the grand final.
+            losersSource = wb1Matches[0];
+            losersOutcome = Loser;
+        }
+        else
+        {
+            int losersIndex = 1;
+            int losersTotal = 2 * k - 2;
+
+            // Losers round 1 (minor): the winners-bracket round-1 losers play each other.
+            var firstLosersRound = new Round { Number = number++, Name = LosersRoundName(losersIndex++, losersTotal), Bracket = "lower" };
+            var losersCurrent = new List<Match>();
+            for (int i = 0; i < wb1Matches.Count; i += 2)
+            {
+                var match = LinkedMatch(wb1Matches[i], Loser, wb1Matches[i + 1], Loser);
+                firstLosersRound.Matches.Add(match);
+                losersCurrent.Add(match);
+            }
+            rounds.Add(firstLosersRound);
+
+            for (int r = 2; r <= k; r++)
+            {
+                // Major round: losers-bracket survivors face the fresh losers dropping from winners round r.
+                var droppers = winnersByRound[r - 1];
+                var major = new Round { Number = number++, Name = LosersRoundName(losersIndex++, losersTotal), Bracket = "lower" };
+                var afterMajor = new List<Match>();
+                for (int i = 0; i < losersCurrent.Count; i++)
+                {
+                    var match = LinkedMatch(losersCurrent[i], Winner, droppers[i], Loser);
+                    major.Matches.Add(match);
+                    afterMajor.Add(match);
+                }
+                rounds.Add(major);
+                losersCurrent = afterMajor;
+
+                // Minor round: the survivors play each other (skipped once a single team remains).
+                if (losersCurrent.Count > 1)
+                {
+                    var minor = new Round { Number = number++, Name = LosersRoundName(losersIndex++, losersTotal), Bracket = "lower" };
+                    var afterMinor = new List<Match>();
+                    for (int i = 0; i < losersCurrent.Count; i += 2)
+                    {
+                        var match = LinkedMatch(losersCurrent[i], Winner, losersCurrent[i + 1], Winner);
+                        minor.Matches.Add(match);
+                        afterMinor.Add(match);
+                    }
+                    rounds.Add(minor);
+                    losersCurrent = afterMinor;
+                }
+            }
+
+            losersSource = losersCurrent[0];
+            losersOutcome = Winner;
+        }
+
+        // ----- Grand final -----
+        var grandFinal = new Round { Number = number++, Name = "Grande final", Bracket = "grand_final" };
+        grandFinal.Matches.Add(LinkedMatch(winnersFinal, Winner, losersSource, losersOutcome));
+        rounds.Add(grandFinal);
+
+        return rounds;
+    }
+
+    /// <summary>
     /// Resolves a finished knockout match into its (winner, loser). A draw is broken by the penalty
     /// shootout; an unresolved or still-tied shootout is rejected so the result can be completed.
     /// </summary>
@@ -130,6 +251,17 @@ public static class KnockoutEngine
         Date = DateTime.UtcNow
     };
 
+    /// <summary>Creates a scheduled match whose slots are fed by the results of two earlier matches.</summary>
+    private static Match LinkedMatch(Match homeSource, string homeOutcome, Match awaySource, string awayOutcome) => new()
+    {
+        Status = "scheduled",
+        Date = DateTime.UtcNow,
+        HomeSourceMatch = homeSource,
+        HomeSourceOutcome = homeOutcome,
+        AwaySourceMatch = awaySource,
+        AwaySourceOutcome = awayOutcome
+    };
+
     /// <summary>Friendly stage name for a round, based on how many teams contest it.</summary>
     public static string NameForTeams(int teams) => teams switch
     {
@@ -139,6 +271,12 @@ public static class KnockoutEngine
         16 => "Oitavas de final",
         _ => $"Fase de {teams}"
     };
+
+    private static string WinnersRoundName(int round, int totalRounds) =>
+        round == totalRounds ? "Final da chave de vencedores" : $"Chave de vencedores - Rodada {round}";
+
+    private static string LosersRoundName(int index, int total) =>
+        index == total ? "Final da chave de perdedores" : $"Chave de perdedores - Rodada {index}";
 
     /// <summary>Fisher-Yates shuffle for the random draw.</summary>
     public static List<int> Shuffle(IEnumerable<int> source)
