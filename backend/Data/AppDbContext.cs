@@ -234,5 +234,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(x => x.AwayTeamId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Self-references linking a knockout match to the matches that feed its slots. SetNull so that
+        // wiping a bracket (regeneration / cascade delete) never trips the self FK.
+        modelBuilder.Entity<Match>()
+            .HasOne(x => x.HomeSourceMatch)
+            .WithMany()
+            .HasForeignKey(x => x.HomeSourceMatchId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Match>()
+            .HasOne(x => x.AwaySourceMatch)
+            .WithMany()
+            .HasForeignKey(x => x.AwaySourceMatchId)
+            .OnDelete(DeleteBehavior.SetNull);
+
     }
 }

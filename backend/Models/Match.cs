@@ -18,14 +18,40 @@ public class Match
     public int RoundId { get; set; }
 
     /// <summary>
-    /// Foreign key identifying the home team.
+    /// Foreign key identifying the home team. Null while the slot is still undecided in a pre-generated
+    /// knockout bracket (filled once the feeding match resolves).
     /// </summary>
-    public int HomeTeamId { get; set; }
+    public int? HomeTeamId { get; set; }
 
     /// <summary>
-    /// Foreign key identifying the away team.
+    /// Foreign key identifying the away team. Null while the slot is still undecided in a pre-generated
+    /// knockout bracket (filled once the feeding match resolves).
     /// </summary>
-    public int AwayTeamId { get; set; }
+    public int? AwayTeamId { get; set; }
+
+    /// <summary>
+    /// In a pre-generated knockout bracket, the match whose result feeds this match's home slot. Null for
+    /// league/group matches and for slots seeded with a known team (e.g. a bye).
+    /// </summary>
+    public int? HomeSourceMatchId { get; set; }
+
+    /// <summary>
+    /// In a pre-generated knockout bracket, the match whose result feeds this match's away slot.
+    /// </summary>
+    public int? AwaySourceMatchId { get; set; }
+
+    /// <summary>
+    /// Which side of the home source match advances into this slot: "winner" (next round) or "loser"
+    /// (third-place match). Null when the home slot is not fed by another match.
+    /// </summary>
+    [MaxLength(10)]
+    public string? HomeSourceOutcome { get; set; }
+
+    /// <summary>
+    /// Which side of the away source match advances into this slot: "winner" or "loser".
+    /// </summary>
+    [MaxLength(10)]
+    public string? AwaySourceOutcome { get; set; }
 
     /// <summary>
     /// Number of goals scored by the home team.
@@ -77,13 +103,22 @@ public class Match
     public Round Round { get; set; } = null!;
 
     /// <summary>
-    /// Navigation reference to the home team.
+    /// Navigation reference to the home team. Null while the slot is undecided.
     /// </summary>
-    public Team HomeTeam { get; set; } = null!;
+    public Team? HomeTeam { get; set; }
 
     /// <summary>
-    /// Navigation reference to the away team.
+    /// Navigation reference to the away team. Null while the slot is undecided.
     /// </summary>
-    public Team AwayTeam { get; set; } = null!;
+    public Team? AwayTeam { get; set; }
 
+    /// <summary>
+    /// Navigation reference to the match feeding this match's home slot, if any.
+    /// </summary>
+    public Match? HomeSourceMatch { get; set; }
+
+    /// <summary>
+    /// Navigation reference to the match feeding this match's away slot, if any.
+    /// </summary>
+    public Match? AwaySourceMatch { get; set; }
 }
