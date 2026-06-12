@@ -80,7 +80,7 @@
 - [x] **BE-013** ✅ Resposta de validação padronizada: `ApiBehaviorOptions.InvalidModelStateResponseFactory` no `Program.cs` monta `ValidationErrorResponseDto` (`{ message, errors: { campo: [...] } }`) a partir do `ModelState`. Mantém o campo `message` consistente com o middleware (INT-003).
 - [x] **BE-014** ✅ Arquivo renomeado para `AuthenticationController.cs` (classe `AuthController` e rota `api/auth` inalteradas).
 - [x] **BE-015** ✅ Seed dos `Formats` via `HasData` + migration `SeedFormats`.
-- [ ] **BE-016** 🟢 README do backend: setup (`dotnet user-secrets`, `dotnet ef database update`, portas, connection string).
+- [x] **BE-016** ✅ README de arquitetura do backend ([backend/README.md](backend/README.md)): stack, camadas, modelo de dados, auth/refresh/RBAC, motor de chaveamentos, estatísticas e setup — com o *porquê* de cada decisão.
 
 ### Epic D — Qualidade
 - [ ] **BE-017** 🟢 Testes (xUnit) para o `AuthService` e para a geração de fixtures (**BE-008**).
