@@ -65,6 +65,13 @@ namespace MyCup.Controllers
             return Ok(new { message = "Chaveamento gerado com sucesso" });
         }
 
+        [HttpGet("{id}/bracket")]
+        public async Task<ActionResult<BracketDto>> GetBracket(int id)
+        {
+            var data = await _championshipsService.GetBracketAsync(id);
+            return Ok(data);
+        }
+
         // ----- Team pool -----
 
         [HttpGet("{id}/teams")]

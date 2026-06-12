@@ -7,6 +7,7 @@ using MyCup.DTOs.Common;
 using MyCup.DTOs.Teams;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Fixtures;
 
 namespace MyCup.Services;
 
@@ -99,6 +100,10 @@ public class ChampionshipsService
                 .ThenInclude(p => p.Rounds)
                     .ThenInclude(r => r.Matches)
                         .ThenInclude(m => m.AwayTeam)
+            .Include(c => c.Phases)
+                .ThenInclude(p => p.Groups)
+                    .ThenInclude(g => g.GroupTeams)
+                        .ThenInclude(gt => gt.Team)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (championship == null)
@@ -124,8 +129,87 @@ public class ChampionshipsService
                 .Select(ct => new TeamSummaryDto { Id = ct.Team.Id, Name = ct.Team.Name })
                 .OrderBy(t => t.Name)
                 .ToList(),
-            Standings = BuildStandings(championship),
+            Standings = championship.Format.Type == "round_robin" ? BuildStandings(championship) : new(),
+            Groups = championship.Format.Type == "groups_knockout" ? BuildGroupStandings(championship) : new(),
             Rounds = BuildRounds(championship)
+        };
+    }
+
+    /// <summary>
+    /// Returns the knockout bracket (single/double elimination, or the knockout phase of groups_knockout)
+    /// as rounds of matches, with each match's teams, score, winner, and the match its winner feeds into.
+    /// </summary>
+    public async Task<BracketDto> GetBracketAsync(int championshipId)
+    {
+        var championship = await _context.Championships
+            .Include(c => c.Phases)
+                .ThenInclude(p => p.Rounds)
+                    .ThenInclude(r => r.Matches)
+                        .ThenInclude(m => m.HomeTeam)
+            .Include(c => c.Phases)
+                .ThenInclude(p => p.Rounds)
+                    .ThenInclude(r => r.Matches)
+                        .ThenInclude(m => m.AwayTeam)
+            .FirstOrDefaultAsync(c => c.Id == championshipId);
+
+        if (championship == null)
+            throw new NotFoundException("Campeonato não encontrado");
+
+        var knockoutPhase = championship.Phases.FirstOrDefault(p => p.Type == "knockout");
+        if (knockoutPhase == null)
+            throw new BadRequestException("Este campeonato não possui fase de mata-mata");
+
+        var matches = knockoutPhase.Rounds.SelectMany(r => r.Matches).ToList();
+
+        // Map each match to the match its winner advances into, so the frontend can draw the connectors.
+        var nextByWinner = new Dictionary<int, int>();
+        foreach (var match in matches)
+        {
+            if (match.HomeSourceMatchId is int homeSource && match.HomeSourceOutcome == KnockoutEngine.Winner)
+                nextByWinner[homeSource] = match.Id;
+            if (match.AwaySourceMatchId is int awaySource && match.AwaySourceOutcome == KnockoutEngine.Winner)
+                nextByWinner[awaySource] = match.Id;
+        }
+
+        var bracket = new BracketDto();
+        foreach (var round in knockoutPhase.Rounds.OrderBy(r => r.Number).ThenBy(r => r.Bracket))
+        {
+            var bracketRound = new BracketRoundDto
+            {
+                Name = round.Name ?? $"Rodada {round.Number}",
+                Bracket = round.Bracket
+            };
+
+            int position = 1;
+            foreach (var match in round.Matches.OrderBy(m => m.Id))
+            {
+                bracketRound.Matches.Add(new BracketMatchDto
+                {
+                    Id = match.Id,
+                    Position = position++,
+                    HomeTeam = ToBracketTeam(match.HomeTeam, match.Status, match.HomeGoals),
+                    AwayTeam = ToBracketTeam(match.AwayTeam, match.Status, match.AwayGoals),
+                    WinnerId = KnockoutEngine.WinnerOrNull(match),
+                    Status = match.Status,
+                    NextMatchId = nextByWinner.TryGetValue(match.Id, out var next) ? next : null
+                });
+            }
+
+            bracket.Rounds.Add(bracketRound);
+        }
+
+        return bracket;
+    }
+
+    private static BracketTeamDto? ToBracketTeam(Team? team, string status, int goals)
+    {
+        if (team == null)
+            return null;
+        return new BracketTeamDto
+        {
+            Id = team.Id,
+            Name = team.Name,
+            Goals = status == "scheduled" ? null : goals
         };
     }
 
@@ -548,21 +632,50 @@ public class ChampionshipsService
         var winPoints = GetIntRule(championship, "win_points", DefaultWinPoints);
         var drawPoints = GetIntRule(championship, "draw_points", DefaultDrawPoints);
 
-        var rows = championship.ChampionshipTeams.ToDictionary(
-            ct => ct.Team.Id,
-            ct => new StandingsRowDto { Team = ct.Team.Name });
+        var roster = championship.ChampionshipTeams.ToDictionary(ct => ct.Team.Id, ct => ct.Team.Name);
+        var matches = championship.Phases.SelectMany(p => p.Rounds).SelectMany(r => r.Matches);
 
-        var finishedMatches = championship.Phases
-            .SelectMany(p => p.Rounds)
-            .SelectMany(r => r.Matches)
-            .Where(m => m.Status == "finished");
+        return ComputeTable(roster, matches, winPoints, drawPoints);
+    }
 
-        foreach (var match in finishedMatches)
+    /// <summary>Builds one standings table per group, from each group's own matches (groups_knockout).</summary>
+    private List<GroupStandingsDto> BuildGroupStandings(Championship championship)
+    {
+        var winPoints = GetIntRule(championship, "win_points", DefaultWinPoints);
+        var drawPoints = GetIntRule(championship, "draw_points", DefaultDrawPoints);
+
+        var allMatches = championship.Phases.SelectMany(p => p.Rounds).SelectMany(r => r.Matches).ToList();
+
+        return championship.Phases
+            .Where(p => p.Type == "groups")
+            .SelectMany(p => p.Groups)
+            .OrderBy(g => g.Name)
+            .Select(group => new GroupStandingsDto
+            {
+                Group = group.Name,
+                Standings = ComputeTable(
+                    group.GroupTeams.ToDictionary(gt => gt.Team.Id, gt => gt.Team.Name),
+                    allMatches.Where(m => m.GroupId == group.Id),
+                    winPoints,
+                    drawPoints)
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Builds a standings table for a roster (team id → name) from its finished matches. Order: points,
+    /// goal difference, goals for, then team name as a deterministic final tiebreak.
+    /// </summary>
+    private static List<StandingsRowDto> ComputeTable(
+        Dictionary<int, string> roster, IEnumerable<Match> matches, int winPoints, int drawPoints)
+    {
+        var rows = roster.ToDictionary(kv => kv.Key, kv => new StandingsRowDto { Team = kv.Value });
+
+        foreach (var match in matches.Where(m => m.Status == "finished"))
         {
             if (match.HomeTeamId is not int homeId || match.AwayTeamId is not int awayId)
                 continue;
-            if (!rows.TryGetValue(homeId, out var home) ||
-                !rows.TryGetValue(awayId, out var away))
+            if (!rows.TryGetValue(homeId, out var home) || !rows.TryGetValue(awayId, out var away))
                 continue;
 
             home.Played++;

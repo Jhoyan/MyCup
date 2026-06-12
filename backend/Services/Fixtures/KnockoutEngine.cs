@@ -265,6 +265,24 @@ public static class KnockoutEngine
         throw new BadRequestException("Os pênaltis também terminaram empatados; informe um vencedor");
     }
 
+    /// <summary>
+    /// The winning team id of a finished match (goals, then penalties), or null when the match is not
+    /// finished or the result is undecided. Non-throwing variant for read/display paths.
+    /// </summary>
+    public static int? WinnerOrNull(Match match)
+    {
+        if (match.Status != "finished" || match.HomeTeamId is not int home || match.AwayTeamId is not int away)
+            return null;
+        if (match.HomeGoals > match.AwayGoals) return home;
+        if (match.AwayGoals > match.HomeGoals) return away;
+        if (match.HomePenalties is int homePens && match.AwayPenalties is int awayPens)
+        {
+            if (homePens > awayPens) return home;
+            if (awayPens > homePens) return away;
+        }
+        return null;
+    }
+
     /// <summary>Creates a scheduled knockout match between two known teams.</summary>
     public static Match NewMatch(int homeTeamId, int awayTeamId) => new()
     {

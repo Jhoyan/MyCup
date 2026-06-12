@@ -13,7 +13,13 @@ namespace MyCup.DTOs.Championships
         public int CurrentRound { get; set; }
         public int TotalRounds { get; set; }
         public List<TeamSummaryDto> Teams { get; set; } = new();
+
+        /// <summary>Flat league table — populated for the round_robin format only.</summary>
         public List<StandingsRowDto> Standings { get; set; } = new();
+
+        /// <summary>Per-group standings — populated for the groups_knockout format only.</summary>
+        public List<GroupStandingsDto> Groups { get; set; } = new();
+
         public List<RoundSummaryDto> Rounds { get; set; } = new();
     }
 }
