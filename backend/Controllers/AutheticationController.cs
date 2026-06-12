@@ -45,6 +45,18 @@ namespace MyCup.Controllers
         }
 
         /// <summary>
+        /// Renova o token de acesso a partir de um refresh token válido (rotação: o refresh token
+        /// enviado é invalidado e um novo par é retornado).
+        /// </summary>
+        [HttpPost("refresh")]
+        [AllowAnonymous]
+        public async Task<ActionResult<AuthResponseDTO>> Refresh([FromBody] RefreshTokenRequestDTO dto)
+        {
+            var response = await _authService.RefreshAsync(dto.RefreshToken);
+            return Ok(response);
+        }
+
+        /// <summary>
         /// Trocar a própria senha (usuário autenticado)
         /// </summary>
         [HttpPost("change-password")]

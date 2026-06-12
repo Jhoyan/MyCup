@@ -57,36 +57,63 @@ namespace MyCup.Services.Authentication
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // GERAR REFRESH TOKEN (SEM Roles)
-        public string GenerateRefreshToken(Models.User user)
+        // GERAR REFRESH TOKEN (secret própria, separada do token de acesso)
+        public RefreshTokenResult GenerateRefreshToken(Models.User user)
         {
             var jwt = _configuration.GetSection("Jwt");
             var secretKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwt["SecretKey"] ?? string.Empty)
+                Encoding.UTF8.GetBytes(jwt["RefreshTokenSecretKey"] ?? string.Empty)
             );
 
+            // Jti único garante que cada refresh token seja distinto, mesmo para o mesmo usuário
+            // (necessário para multissessão e para a rotação a cada uso).
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Name),
-                new Claim(JwtRegisteredClaimNames.Jti, user.Id.ToString()),
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Name),
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             };
 
-            // Tempo de expiração (MAIOR que o token normal)
+            // Tempo de expiração (MAIOR que o token de acesso)
             var refreshExpirationTimeInHours = jwt.GetValue<int>("RefreshExpirationTimeInHours");
+            var expiresAt = DateTime.UtcNow.AddHours(refreshExpirationTimeInHours);
 
-            // Montar o refresh token
             var refreshToken = new JwtSecurityToken(
                 issuer: jwt.GetValue<string>("Issuer"),
                 audience: jwt.GetValue<string>("Audience"),
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(refreshExpirationTimeInHours), // Expira em 8 dias
+                expires: expiresAt,
                 signingCredentials: new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256)
             );
 
-            // Converter pra string
-            return new JwtSecurityTokenHandler().WriteToken(refreshToken);
+            var token = new JwtSecurityTokenHandler().WriteToken(refreshToken);
+            return new RefreshTokenResult(token, expiresAt);
+        }
+
+        // VALIDAR REFRESH TOKEN (assinatura + validade com a secret do refresh) -> id do usuário
+        public async Task<int?> ValidateRefreshTokenAsync(string refreshToken)
+        {
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                return null;
+
+            try
+            {
+                var parameters = TokenHelpers.GetRefreshTokenValidationParameters(_configuration);
+
+                var result = await new JwtSecurityTokenHandler()
+                    .ValidateTokenAsync(refreshToken, parameters);
+
+                if (!result.IsValid)
+                    return null;
+
+                var sub = result.Claims.FirstOrDefault(c => c.Key == JwtRegisteredClaimNames.Sub).Value as string
+                    ?? result.Claims.FirstOrDefault(c => c.Key == ClaimTypes.NameIdentifier).Value as string;
+
+                return int.TryParse(sub, out var userId) ? userId : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         // VALIDAR TOKEN (verifica se é válido)

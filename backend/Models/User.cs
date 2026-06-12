@@ -41,6 +41,11 @@ public class User
     public ICollection<Player> Players { get; set; } = new List<Player>();
 
     /// <summary>
+    /// Active refresh tokens issued to this user (one per session; deleted on rotation/logout).
+    /// </summary>
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    /// <summary>
     /// Indicates whether the user account is active. Inactive accounts cannot log in or manage universes.
     /// </summary>
     public bool IsActive { get; set; } = true;

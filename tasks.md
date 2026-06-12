@@ -75,8 +75,8 @@
 - [x] **BE-010** ✅ Autorização por papel no Universo (`owner` / `admin` / `moderator` via `UserUniverse`). Leitura pública; criador vira owner; membros/conteúdo = admin; resultados = moderator; owner só é gerenciado por owner.
 
 ### Epic C — Auth & infra
-- [ ] **BE-011** 🔴 Endpoint `POST /api/auth/refresh` — `RefreshTokenRequestDTO` e `GenerateRefreshToken` já existem, falta o endpoint no [AuthController](backend/Controllers/AutheticationController.cs).
-- [ ] **BE-012** 🟡 Middleware global de exceções (ProblemDetails) — hoje os `catch` retornam `ex.Message` cru ([AutheticationController.cs:38-45](backend/Controllers/AutheticationController.cs#L38-L45)), o que vaza detalhes internos. Ver **INT-003**.
+- [x] **BE-011** ✅ Endpoint `POST /api/auth/refresh` com rotação. Secret separada (`Jwt:RefreshTokenSecretKey`), JWT 5min / refresh 7 dias, tabela `refresh_tokens` (multissessão, FK cascade). Refresh valida assinatura+validade+presença na tabela; o token usado é invalidado e um novo par é emitido. Login e registro persistem o refresh token.
+- [x] **BE-012** ✅ Middleware global de exceções (`ExceptionMiddleware`, registrado primeiro no `Program.cs`) mapeia exceções de domínio (`NotFound`/`Conflict`/`BadRequest`/`Forbidden`/`Unauthorized`) para `ApiException` `{ statusCode, message }`. Controllers não fazem mais `catch`.
 - [ ] **BE-013** 🟡 Resposta de validação padronizada com `ValidationErrorResponseDto` (já existe) a partir do `ModelState`.
 - [ ] **BE-014** 🟢 Renomear arquivo `AutheticationController.cs` → `AuthenticationController.cs` (typo; a classe `AuthController` e a rota `api/auth` continuam iguais).
 - [ ] **BE-015** 🟢 Seed dos `Formats` (`round_robin` / `knockout` / `groups_knockout`) via migration.

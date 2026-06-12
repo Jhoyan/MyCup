@@ -14,10 +14,17 @@ namespace MyCup.Services.Authentication
         /// Usado no Program.cs e no ValidateTokenAsync
         /// </summary>
         public static TokenValidationParameters GetTokenValidationParameters(IConfiguration configuration)
+            => BuildParameters(configuration, configuration["Jwt:SecretKey"]);
+
+        /// <summary>
+        /// Parâmetros de validação do refresh token (assinado com uma secret separada do token de acesso).
+        /// </summary>
+        public static TokenValidationParameters GetRefreshTokenValidationParameters(IConfiguration configuration)
+            => BuildParameters(configuration, configuration["Jwt:RefreshTokenSecretKey"]);
+
+        private static TokenValidationParameters BuildParameters(IConfiguration configuration, string? secretKey)
         {
-            var tokenKey = Encoding.UTF8.GetBytes(
-                configuration["Jwt:SecretKey"] ?? string.Empty
-            );
+            var tokenKey = Encoding.UTF8.GetBytes(secretKey ?? string.Empty);
 
             return new TokenValidationParameters
             {

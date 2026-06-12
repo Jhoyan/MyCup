@@ -83,6 +83,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// </summary>
     public DbSet<Match> Matches => Set<Match>();
 
+    /// <summary>
+    /// Refresh tokens issued to users (one row per active session).
+    /// </summary>
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
 /// <summary>
     /// Configures entity mappings, table names, keys, indexes, and relationships.
     /// </summary>
@@ -91,6 +96,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<User>().ToTable("users");
+        modelBuilder.Entity<RefreshToken>().ToTable("refresh_tokens");
         modelBuilder.Entity<Universe>().ToTable("universes");
         modelBuilder.Entity<UserUniverse>().ToTable("user_universes");
         modelBuilder.Entity<Player>().ToTable("players");
@@ -268,6 +274,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany()
             .HasForeignKey(x => x.AwaySourceGroupId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(x => x.User)
+            .WithMany(x => x.RefreshTokens)
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Refresh is a lookup by token value, so index it.
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(x => x.Token);
 
     }
 }

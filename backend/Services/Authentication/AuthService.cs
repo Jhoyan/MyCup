@@ -3,7 +3,6 @@ using MyCup.DTOs.Authentication;
 using MyCup.Errors;
 using MyCup.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace MyCup.Services.Authentication
 {
@@ -11,11 +10,13 @@ namespace MyCup.Services.Authentication
     {
         private readonly AppDbContext _context;
         private readonly ITokenManager _tokenManager;
+        private readonly IConfiguration _configuration;
 
-        public AuthService(AppDbContext context, ITokenManager tokenManager)
+        public AuthService(AppDbContext context, ITokenManager tokenManager, IConfiguration configuration)
         {
             _context = context;
             _tokenManager = tokenManager;
+            _configuration = configuration;
         }
 
         public async Task<AuthResponseDTO> LoginAsync(LoginRequestDTO dto)
@@ -36,22 +37,8 @@ namespace MyCup.Services.Authentication
             if (!usuario.VerifyPassword(dto.Password))
                 throw new UnauthorizedException("Email ou senha inválidos");
 
-            // Gerar token JWT
-            var token = _tokenManager.GenerateToken(usuario);
-            var refreshToken = _tokenManager.GenerateRefreshToken(usuario);
-            var expiresAt = DateTime.UtcNow.AddMinutes(10);
-
-            // Montar resposta
-            return new AuthResponseDTO
-            {
-                Token = token,
-                RefreshToken = refreshToken,
-                ExpiraEm = expiresAt,
-                User = new UserInfoResponseDTO(
-                    usuario.Id,
-                    usuario.Name
-                )
-            };
+            // Emitir tokens e registrar a sessão (refresh token persistido).
+            return await IssueSessionAsync(usuario);
         }
 
         public async Task<AuthResponseDTO> RegisterAsync(RegisterRequestDTO dto, string userId)
@@ -80,19 +67,69 @@ namespace MyCup.Services.Authentication
             _context.Users.Add(newUser);
             await _context.SaveChangesAsync();
 
-            // Gerar token JWT pro novo usuário
-            var token = _tokenManager.GenerateToken(newUser);
-            var expiresAt = DateTime.UtcNow.AddMinutes(10);
+            // Já deixa o novo usuário logado: emite tokens e registra a sessão.
+            return await IssueSessionAsync(newUser);
+        }
 
-            // Montar resposta
+        /// <summary>
+        /// Renova a sessão a partir de um refresh token. Valida assinatura/validade (com a secret do
+        /// refresh) e confirma que o token está armazenado para aquele usuário; o refresh token usado é
+        /// invalidado (rotação) e um novo par token+refresh é emitido.
+        /// </summary>
+        public async Task<AuthResponseDTO> RefreshAsync(string refreshToken)
+        {
+            var userId = await _tokenManager.ValidateRefreshTokenAsync(refreshToken);
+            if (userId is not int id)
+                throw new UnauthorizedException("Refresh token inválido ou expirado");
+
+            var stored = await _context.RefreshTokens
+                .FirstOrDefaultAsync(rt => rt.Token == refreshToken && rt.UserId == id);
+            if (stored == null)
+                throw new UnauthorizedException("Refresh token não reconhecido");
+
+            // Defesa extra: descarta um token expirado que ainda esteja na tabela.
+            if (stored.ExpiresAt < DateTime.UtcNow)
+            {
+                _context.RefreshTokens.Remove(stored);
+                await _context.SaveChangesAsync();
+                throw new UnauthorizedException("Refresh token expirado");
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.IsActive);
+            if (user == null)
+                throw new UnauthorizedException("Usuário inválido");
+
+            // Rotação: invalida o refresh token usado e emite uma nova sessão.
+            _context.RefreshTokens.Remove(stored);
+            return await IssueSessionAsync(user);
+        }
+
+        /// <summary>
+        /// Gera o token de acesso e um refresh token, persiste o refresh token (uma sessão) e monta a
+        /// resposta. Chamado por login, registro e refresh.
+        /// </summary>
+        private async Task<AuthResponseDTO> IssueSessionAsync(Models.User user)
+        {
+            var token = _tokenManager.GenerateToken(user);
+            var refresh = _tokenManager.GenerateRefreshToken(user);
+
+            _context.RefreshTokens.Add(new RefreshToken
+            {
+                UserId = user.Id,
+                Token = refresh.Token,
+                ExpiresAt = refresh.ExpiresAt,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+
+            var expirationMinutes = _configuration.GetValue<int>("Jwt:ExpirationTimeInMinutes");
+
             return new AuthResponseDTO
             {
                 Token = token,
-                ExpiraEm = expiresAt,
-                User = new UserInfoResponseDTO(
-                    newUser.Id,
-                    newUser.Name
-                )
+                RefreshToken = refresh.Token,
+                ExpiraEm = DateTime.UtcNow.AddMinutes(expirationMinutes),
+                User = new UserInfoResponseDTO(user.Id, user.Name)
             };
         }
 
