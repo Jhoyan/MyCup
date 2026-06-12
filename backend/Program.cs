@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using MyCup.Services.Authentication;
 using MyCup.Services.Authorization;
 using MyCup.Middleware;
+using Microsoft.AspNetCore.Mvc;
+using MyCup.DTOs.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,6 +58,29 @@ builder.Services.AddScoped<IFixtureGenerator, KnockoutFixtureGenerator>();
 builder.Services.AddScoped<IFixtureGenerator, GroupsKnockoutFixtureGenerator>();
 
 builder.Services.AddControllers();
+
+// Padroniza a resposta de erros de validação do ModelState em ValidationErrorResponseDto
+// (mantém o campo "message" consistente com o middleware de exceções — ver INT-003).
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value is not null && entry.Value.Errors.Count > 0)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value!.Errors.Select(e => e.ErrorMessage).ToArray());
+
+        var response = new ValidationErrorResponseDto
+        {
+            Message = "Erro de validação",
+            Errors = errors
+        };
+
+        return new BadRequestObjectResult(response);
+    };
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(

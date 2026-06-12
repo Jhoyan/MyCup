@@ -77,9 +77,9 @@
 ### Epic C — Auth & infra
 - [x] **BE-011** ✅ Endpoint `POST /api/auth/refresh` com rotação. Secret separada (`Jwt:RefreshTokenSecretKey`), JWT 5min / refresh 7 dias, tabela `refresh_tokens` (multissessão, FK cascade). Refresh valida assinatura+validade+presença na tabela; o token usado é invalidado e um novo par é emitido. Login e registro persistem o refresh token.
 - [x] **BE-012** ✅ Middleware global de exceções (`ExceptionMiddleware`, registrado primeiro no `Program.cs`) mapeia exceções de domínio (`NotFound`/`Conflict`/`BadRequest`/`Forbidden`/`Unauthorized`) para `ApiException` `{ statusCode, message }`. Controllers não fazem mais `catch`.
-- [ ] **BE-013** 🟡 Resposta de validação padronizada com `ValidationErrorResponseDto` (já existe) a partir do `ModelState`.
-- [ ] **BE-014** 🟢 Renomear arquivo `AutheticationController.cs` → `AuthenticationController.cs` (typo; a classe `AuthController` e a rota `api/auth` continuam iguais).
-- [ ] **BE-015** 🟢 Seed dos `Formats` (`round_robin` / `knockout` / `groups_knockout`) via migration.
+- [x] **BE-013** ✅ Resposta de validação padronizada: `ApiBehaviorOptions.InvalidModelStateResponseFactory` no `Program.cs` monta `ValidationErrorResponseDto` (`{ message, errors: { campo: [...] } }`) a partir do `ModelState`. Mantém o campo `message` consistente com o middleware (INT-003).
+- [x] **BE-014** ✅ Arquivo renomeado para `AuthenticationController.cs` (classe `AuthController` e rota `api/auth` inalteradas).
+- [x] **BE-015** ✅ Seed dos `Formats` via `HasData` + migration `SeedFormats`.
 - [ ] **BE-016** 🟢 README do backend: setup (`dotnet user-secrets`, `dotnet ef database update`, portas, connection string).
 
 ### Epic D — Qualidade
