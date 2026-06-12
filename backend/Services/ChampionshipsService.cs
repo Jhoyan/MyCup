@@ -220,6 +220,147 @@ public class ChampionshipsService
         return bracket;
     }
 
+    /// <summary>
+    /// Aggregates a championship's statistics from its finished matches. Player metrics are derived from
+    /// the team each player controls (PlayerChampionship) — there are no per-player events, so MostAssists
+    /// and BiggestComeback are left empty (no assist data; comebacks need in-match progression we don't store).
+    /// </summary>
+    public async Task<ChampionshipStatisticsDto> GetStatisticsAsync(int championshipId)
+    {
+        var championship = await _context.Championships
+            .Include(c => c.Phases)
+                .ThenInclude(p => p.Rounds)
+                    .ThenInclude(r => r.Matches)
+                        .ThenInclude(m => m.HomeTeam)
+            .Include(c => c.Phases)
+                .ThenInclude(p => p.Rounds)
+                    .ThenInclude(r => r.Matches)
+                        .ThenInclude(m => m.AwayTeam)
+            .Include(c => c.ChampionshipTeams)
+                .ThenInclude(ct => ct.Team)
+            .FirstOrDefaultAsync(c => c.Id == championshipId);
+
+        if (championship == null)
+            throw new NotFoundException("Campeonato não encontrado");
+
+        var teamNames = championship.ChampionshipTeams.ToDictionary(ct => ct.Team.Id, ct => ct.Team.Name);
+
+        // teamId -> player controlling that team in this championship (one player controls one full team)
+        var teamToPlayer = (await _context.PlayerChampionships
+                .Where(pc => pc.ChampionshipId == championshipId && pc.TeamId != null && pc.Player.IsActive)
+                .Select(pc => new { TeamId = pc.TeamId!.Value, pc.PlayerId, PlayerName = pc.Player.Name })
+                .ToListAsync())
+            .ToDictionary(e => e.TeamId, e => (e.PlayerId, e.PlayerName));
+
+        var matches = championship.Phases
+            .SelectMany(p => p.Rounds)
+            .SelectMany(r => r.Matches)
+            .Where(m => m.Status == "finished" && m.HomeTeamId != null && m.AwayTeamId != null)
+            .ToList();
+
+        var stats = new ChampionshipStatisticsDto();
+        if (matches.Count == 0)
+            return stats;
+
+        // Player goals (via the controlled team), team wins, goals conceded per team.
+        var playerGoals = new Dictionary<int, PlayerGoalStatDto>();
+        var teamWins = teamNames.Keys.ToDictionary(id => id, _ => 0);
+        var conceded = teamNames.Keys.ToDictionary(id => id, _ => (Conceded: 0, Played: 0));
+
+        void AddPlayerGoals(int teamId, int goals)
+        {
+            if (!teamToPlayer.TryGetValue(teamId, out var player))
+                return;
+            if (playerGoals.TryGetValue(player.PlayerId, out var row))
+                row.Goals += goals;
+            else
+                playerGoals[player.PlayerId] = new PlayerGoalStatDto
+                {
+                    PlayerId = player.PlayerId,
+                    Name = player.PlayerName,
+                    Team = teamNames.GetValueOrDefault(teamId, string.Empty),
+                    Goals = goals
+                };
+        }
+
+        void AddConceded(int teamId, int goalsAgainst)
+        {
+            if (!conceded.TryGetValue(teamId, out var c))
+                return;
+            conceded[teamId] = (c.Conceded + goalsAgainst, c.Played + 1);
+        }
+
+        int totalGoals = 0;
+        foreach (var match in matches)
+        {
+            int home = match.HomeTeamId!.Value, away = match.AwayTeamId!.Value;
+            totalGoals += match.HomeGoals + match.AwayGoals;
+
+            AddPlayerGoals(home, match.HomeGoals);
+            AddPlayerGoals(away, match.AwayGoals);
+            AddConceded(home, match.AwayGoals);
+            AddConceded(away, match.HomeGoals);
+
+            if (match.HomeGoals > match.AwayGoals && teamWins.ContainsKey(home)) teamWins[home]++;
+            else if (match.AwayGoals > match.HomeGoals && teamWins.ContainsKey(away)) teamWins[away]++;
+        }
+
+        // Top scorers (players ranked by the goals of the team they control).
+        stats.TopScorers = playerGoals.Values
+            .OrderByDescending(p => p.Goals)
+            .ThenBy(p => p.Name)
+            .Take(10)
+            .ToList();
+        stats.TopScorer = stats.TopScorers.FirstOrDefault() ?? new PlayerGoalStatDto();
+
+        // Most wins.
+        var topTeam = teamWins.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).ThenBy(kv => teamNames.GetValueOrDefault(kv.Key)).FirstOrDefault();
+        if (topTeam.Value > 0)
+            stats.MostWins = new TeamWinsDto { TeamId = topTeam.Key, Name = teamNames.GetValueOrDefault(topTeam.Key, string.Empty), Wins = topTeam.Value };
+
+        // Biggest win (largest goal margin among decisive results).
+        var biggest = matches
+            .Where(m => m.HomeGoals != m.AwayGoals)
+            .OrderByDescending(m => Math.Abs(m.HomeGoals - m.AwayGoals))
+            .ThenByDescending(m => m.HomeGoals + m.AwayGoals)
+            .FirstOrDefault();
+        if (biggest != null)
+            stats.BiggestWin = new MatchScoreDto
+            {
+                MatchId = biggest.Id,
+                HomeTeam = biggest.HomeTeam?.Name ?? string.Empty,
+                AwayTeam = biggest.AwayTeam?.Name ?? string.Empty,
+                HomeGoals = biggest.HomeGoals,
+                AwayGoals = biggest.AwayGoals
+            };
+
+        // Goals per match (across the whole championship).
+        stats.GoalsPerMatch = Math.Round((double)totalGoals / matches.Count, 2);
+
+        // Best/worst defence by average goals conceded per match played.
+        var defences = conceded
+            .Where(kv => kv.Value.Played > 0)
+            .Select(kv => new TeamAverageDto
+            {
+                TeamId = kv.Key,
+                Name = teamNames.GetValueOrDefault(kv.Key, string.Empty),
+                Average = Math.Round((double)kv.Value.Conceded / kv.Value.Played, 2)
+            })
+            .ToList();
+        if (defences.Count > 0)
+        {
+            stats.GoalsConcededPerMatch = new GoalsConcededPerMatchDto
+            {
+                Best = defences.OrderBy(d => d.Average).ThenBy(d => d.Name).First(),
+                Worst = defences.OrderByDescending(d => d.Average).ThenBy(d => d.Name).First()
+            };
+        }
+
+        // MostAssists / BiggestComeback intentionally left empty — no assist events and no in-match
+        // progression are stored (1 player = 1 team, only the final score is recorded).
+        return stats;
+    }
+
     private static BracketTeamDto? ToBracketTeam(Team? team, string status, int goals)
     {
         if (team == null)

@@ -75,6 +75,14 @@ namespace MyCup.Controllers
             return Ok(data);
         }
 
+        [HttpGet("{id}/statistics")]
+        [AllowAnonymous]
+        public async Task<ActionResult<ChampionshipStatisticsDto>> GetStatistics(int id)
+        {
+            var data = await _championshipsService.GetStatisticsAsync(id);
+            return Ok(data);
+        }
+
         // ----- Team pool -----
 
         [HttpGet("{id}/teams")]

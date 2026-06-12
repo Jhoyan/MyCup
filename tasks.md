@@ -71,7 +71,7 @@
 
 ### Epic B — Domínio & regras (núcleo do produto)
 - [x] **BE-008** ✅ Geração de chaveamento/fixtures por `Format`: `round_robin`, `knockout` (simples + dupla eliminação), `groups_knockout`. Bracket pré-gerado com preenchimento automático de vagas; `GET /championships/{id}/bracket`.
-- [ ] **BE-009** 🟡 Classificação (`StandingsRowDto`) ✅ feita (plana p/ liga + por grupo); falta estatísticas (`ChampionshipStatisticsDto`, artilheiros/assistências).
+- [x] **BE-009** ✅ Classificação (`StandingsRowDto`, plana p/ liga + por grupo) e estatísticas (`GET /championships/{id}/statistics`): artilheiros (jogador via time que controla), maior goleada, gols/jogo, melhor/pior defesa, mais vitórias. `MostAssists`/`BiggestComeback` ficam vazios — não há dado de origem (sem eventos individuais; só placar final).
 - [x] **BE-010** ✅ Autorização por papel no Universo (`owner` / `admin` / `moderator` via `UserUniverse`). Leitura pública; criador vira owner; membros/conteúdo = admin; resultados = moderator; owner só é gerenciado por owner.
 
 ### Epic C — Auth & infra
