@@ -70,9 +70,9 @@
 - [ ] **BE-007** 🟡 `UserUniversesController` (membros / papéis) — service pronto em [UserUniversesService.cs](backend/Services/UserUniversesService.cs).
 
 ### Epic B — Domínio & regras (núcleo do produto)
-- [ ] **BE-008** 🔴 Geração de chaveamento/fixtures por `Format`: `round_robin`, `knockout`, `groups_knockout` (ver regras no [README.md](README.md)).
-- [ ] **BE-009** 🟡 Classificação (`StandingsRowDto`) e estatísticas (`ChampionshipStatisticsDto`, artilheiros/assistências).
-- [ ] **BE-010** 🟡 Autorização por papel no Universo (`owner` / `admin` / `moderator` via `UserUniverse`).
+- [x] **BE-008** ✅ Geração de chaveamento/fixtures por `Format`: `round_robin`, `knockout` (simples + dupla eliminação), `groups_knockout`. Bracket pré-gerado com preenchimento automático de vagas; `GET /championships/{id}/bracket`.
+- [ ] **BE-009** 🟡 Classificação (`StandingsRowDto`) ✅ feita (plana p/ liga + por grupo); falta estatísticas (`ChampionshipStatisticsDto`, artilheiros/assistências).
+- [x] **BE-010** ✅ Autorização por papel no Universo (`owner` / `admin` / `moderator` via `UserUniverse`). Leitura pública; criador vira owner; membros/conteúdo = admin; resultados = moderator; owner só é gerenciado por owner.
 
 ### Epic C — Auth & infra
 - [ ] **BE-011** 🔴 Endpoint `POST /api/auth/refresh` — `RefreshTokenRequestDTO` e `GenerateRefreshToken` já existem, falta o endpoint no [AuthController](backend/Controllers/AutheticationController.cs).

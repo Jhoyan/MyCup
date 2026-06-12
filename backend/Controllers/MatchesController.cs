@@ -19,6 +19,7 @@ namespace MyCup.Controllers
         }
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<MatchSummaryDto>> GetById(int id)
         {
             var data = await _matchesService.GetByIdAsync(id);

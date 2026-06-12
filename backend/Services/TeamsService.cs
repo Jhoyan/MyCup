@@ -4,19 +4,22 @@ using MyCup.DTOs.Common;
 using MyCup.DTOs.Teams;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Authorization;
 
 namespace MyCup.Services;
 
 /// <summary>
-/// Service responsible for team business rules. Teams are scoped to a universe.
+/// Service responsible for team business rules. Teams are scoped to a universe; writes require admin.
 /// </summary>
 public class TeamsService
 {
     private readonly AppDbContext _context;
+    private readonly UniverseAuthorizer _authorizer;
 
-    public TeamsService(AppDbContext context)
+    public TeamsService(AppDbContext context, UniverseAuthorizer authorizer)
     {
         _context = context;
+        _authorizer = authorizer;
     }
 
     public async Task<int> CreateTeamAsync(CreateTeamDto dto)
@@ -24,6 +27,8 @@ public class TeamsService
         var universeExists = await _context.Universes.AnyAsync(u => u.Id == dto.UniverseId);
         if (!universeExists)
             throw new NotFoundException("Universo não encontrado");
+
+        await _authorizer.RequireRoleAsync(dto.UniverseId, UniverseRole.Admin);
 
         var nameTaken = await _context.Teams
             .AnyAsync(t => t.UniverseId == dto.UniverseId && t.Name == dto.Name);
@@ -79,6 +84,8 @@ public class TeamsService
         if (team == null)
             throw new NotFoundException("Time não encontrado");
 
+        await _authorizer.RequireRoleAsync(team.UniverseId, UniverseRole.Admin);
+
         var nameTaken = await _context.Teams
             .AnyAsync(t => t.UniverseId == team.UniverseId && t.Name == dto.Name && t.Id != id);
         if (nameTaken)
@@ -94,6 +101,8 @@ public class TeamsService
 
         if (team == null)
             throw new NotFoundException("Time não encontrado");
+
+        await _authorizer.RequireRoleAsync(team.UniverseId, UniverseRole.Admin);
 
         var inUse =
             await _context.ChampionshipTeams.AnyAsync(ct => ct.TeamId == id) ||

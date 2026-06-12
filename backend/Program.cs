@@ -5,6 +5,7 @@ using MyCup.Services.Fixtures;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using MyCup.Services.Authentication;
+using MyCup.Services.Authorization;
 using MyCup.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +39,8 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<UniverseAuthorizer>();
 builder.Services.AddScoped<ITokenManager, TokenManager>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UniversesService>();

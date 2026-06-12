@@ -4,6 +4,7 @@ using MyCup.DTOs.Championships;
 using MyCup.DTOs.Universe;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Authorization;
 
 namespace MyCup.Services;
 
@@ -13,14 +14,21 @@ namespace MyCup.Services;
 public class UniversesService
 {
     private readonly AppDbContext _context;
+    private readonly UniverseAuthorizer _authorizer;
 
-    public UniversesService(AppDbContext context)
+    public UniversesService(AppDbContext context, UniverseAuthorizer authorizer)
     {
         _context = context;
+        _authorizer = authorizer;
     }
 
+    /// <summary>
+    /// Creates a universe. Any authenticated user may create one and becomes its owner.
+    /// </summary>
     public async Task<int> CreateUniverseAsync(CreateUniverseDto dto)
     {
+        var userId = _authorizer.CurrentUserId();
+
         Universe universe = new()
         {
             Name = dto.Name,
@@ -28,6 +36,14 @@ public class UniversesService
         };
 
         _context.Universes.Add(universe);
+        await _context.SaveChangesAsync();
+
+        _context.UserUniverses.Add(new UserUniverse
+        {
+            UniverseId = universe.Id,
+            UserId = userId,
+            Role = "owner"
+        });
         await _context.SaveChangesAsync();
 
         return universe.Id;
@@ -94,6 +110,8 @@ public class UniversesService
         if (universe == null)
             throw new NotFoundException("Universo não encontrado");
 
+        await _authorizer.RequireRoleAsync(id, UniverseRole.Admin);
+
         universe.Name = dto.Name;
         universe.Description = dto.Description;
 
@@ -106,6 +124,8 @@ public class UniversesService
 
         if (universe == null)
             throw new NotFoundException("Universo não encontrado");
+
+        await _authorizer.RequireRoleAsync(id, UniverseRole.Owner);
 
         _context.Universes.Remove(universe);
         await _context.SaveChangesAsync();

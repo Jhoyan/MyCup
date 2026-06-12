@@ -24,6 +24,7 @@ namespace MyCup.Controllers
         // ----- Championship CRUD -----
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<List<ChampionshipSummaryDto>>> GetByUniverse([FromQuery] int universeId)
         {
             var data = await _championshipsService.GetByUniverseAsync(universeId);
@@ -31,6 +32,7 @@ namespace MyCup.Controllers
         }
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<ChampionshipDetailDto>> GetById(int id)
         {
             var data = await _championshipsService.GetByIdAsync(id);
@@ -66,6 +68,7 @@ namespace MyCup.Controllers
         }
 
         [HttpGet("{id}/bracket")]
+        [AllowAnonymous]
         public async Task<ActionResult<BracketDto>> GetBracket(int id)
         {
             var data = await _championshipsService.GetBracketAsync(id);
@@ -75,6 +78,7 @@ namespace MyCup.Controllers
         // ----- Team pool -----
 
         [HttpGet("{id}/teams")]
+        [AllowAnonymous]
         public async Task<ActionResult<List<TeamSummaryDto>>> GetTeams(int id)
         {
             var data = await _championshipsService.GetTeamsAsync(id);
@@ -98,6 +102,7 @@ namespace MyCup.Controllers
         // ----- Rules -----
 
         [HttpGet("{id}/rules")]
+        [AllowAnonymous]
         public async Task<ActionResult<List<ChampionshipRuleDto>>> GetRules(int id)
         {
             var data = await _championshipsService.GetRulesAsync(id);
@@ -121,6 +126,7 @@ namespace MyCup.Controllers
         // ----- Players / draw -----
 
         [HttpGet("{id}/players")]
+        [AllowAnonymous]
         public async Task<ActionResult<List<ChampionshipPlayerDto>>> GetPlayers(int id)
         {
             var data = await _championshipsService.GetPlayersAsync(id);

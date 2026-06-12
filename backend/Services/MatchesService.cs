@@ -3,6 +3,7 @@ using MyCup.Data;
 using MyCup.DTOs.Championships;
 using MyCup.DTOs.Matches;
 using MyCup.Errors;
+using MyCup.Services.Authorization;
 
 namespace MyCup.Services;
 
@@ -21,11 +22,13 @@ public class MatchesService
 
     private readonly AppDbContext _context;
     private readonly FixturesService _fixturesService;
+    private readonly UniverseAuthorizer _authorizer;
 
-    public MatchesService(AppDbContext context, FixturesService fixturesService)
+    public MatchesService(AppDbContext context, FixturesService fixturesService, UniverseAuthorizer authorizer)
     {
         _context = context;
         _fixturesService = fixturesService;
+        _authorizer = authorizer;
     }
 
     public async Task<MatchSummaryDto> GetByIdAsync(int id)
@@ -65,6 +68,13 @@ public class MatchesService
 
         if (match == null)
             throw new NotFoundException("Partida não encontrada");
+
+        // Recording results requires at least moderator in the match's universe.
+        var universeId = await _context.Matches
+            .Where(m => m.Id == id)
+            .Select(m => m.Round.Phase.Championship.UniverseId)
+            .FirstAsync();
+        await _authorizer.RequireRoleAsync(universeId, UniverseRole.Moderator);
 
         var status = dto.Status.ToLowerInvariant();
 

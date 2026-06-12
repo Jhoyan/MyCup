@@ -3,19 +3,22 @@ using MyCup.Data;
 using MyCup.DTOs.Players;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Authorization;
 
 namespace MyCup.Services;
 
 /// <summary>
-/// Service responsible for player business rules.
+/// Service responsible for player business rules. Writes require admin in the player's universe.
 /// </summary>
 public class PlayersService
 {
     private readonly AppDbContext _context;
+    private readonly UniverseAuthorizer _authorizer;
 
-    public PlayersService(AppDbContext context)
+    public PlayersService(AppDbContext context, UniverseAuthorizer authorizer)
     {
         _context = context;
+        _authorizer = authorizer;
     }
 
     public async Task<int> CreatePlayerAsync(CreatePlayerDto dto)
@@ -23,6 +26,8 @@ public class PlayersService
         var universeExists = await _context.Universes.AnyAsync(u => u.Id == dto.UniverseId);
         if (!universeExists)
             throw new NotFoundException("Universo não encontrado");
+
+        await _authorizer.RequireRoleAsync(dto.UniverseId, UniverseRole.Admin);
 
         Player player = new()
         {
@@ -72,6 +77,8 @@ public class PlayersService
         if (player == null)
             throw new NotFoundException("Jogador não encontrado");
 
+        await _authorizer.RequireRoleAsync(player.UniverseId, UniverseRole.Admin);
+
         player.Name = dto.Name;
         await _context.SaveChangesAsync();
     }
@@ -85,6 +92,8 @@ public class PlayersService
 
         if (player == null)
             throw new NotFoundException("Jogador não encontrado");
+
+        await _authorizer.RequireRoleAsync(player.UniverseId, UniverseRole.Admin);
 
         player.IsActive = false;
         await _context.SaveChangesAsync();

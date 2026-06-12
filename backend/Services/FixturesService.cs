@@ -3,6 +3,7 @@ using MyCup.Data;
 using MyCup.DTOs.Championships;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Authorization;
 using MyCup.Services.Fixtures;
 
 namespace MyCup.Services;
@@ -14,11 +15,13 @@ namespace MyCup.Services;
 public class FixturesService
 {
     private readonly AppDbContext _context;
+    private readonly UniverseAuthorizer _authorizer;
     private readonly Dictionary<string, IFixtureGenerator> _generators;
 
-    public FixturesService(AppDbContext context, IEnumerable<IFixtureGenerator> generators)
+    public FixturesService(AppDbContext context, UniverseAuthorizer authorizer, IEnumerable<IFixtureGenerator> generators)
     {
         _context = context;
+        _authorizer = authorizer;
         _generators = generators.ToDictionary(g => g.Format, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -34,6 +37,8 @@ public class FixturesService
 
         if (championship == null)
             throw new NotFoundException("Campeonato não encontrado");
+
+        await _authorizer.RequireRoleAsync(championship.UniverseId, UniverseRole.Admin);
 
         if (!_generators.TryGetValue(championship.Format.Type, out var generator))
             throw new BadRequestException($"Geração não suportada para o formato '{championship.Format.Type}'");

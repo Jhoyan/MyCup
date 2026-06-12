@@ -19,6 +19,7 @@ namespace MyCup.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<List<TeamSummaryDto>>> GetByUniverse([FromQuery] int universeId)
         {
             var data = await _teamsService.GetByUniverseAsync(universeId);
@@ -26,6 +27,7 @@ namespace MyCup.Controllers
         }
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<TeamSummaryDto>> GetById(int id)
         {
             var data = await _teamsService.GetByIdAsync(id);

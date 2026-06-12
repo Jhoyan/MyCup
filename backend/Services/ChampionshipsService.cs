@@ -7,6 +7,7 @@ using MyCup.DTOs.Common;
 using MyCup.DTOs.Teams;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Authorization;
 using MyCup.Services.Fixtures;
 
 namespace MyCup.Services;
@@ -22,10 +23,26 @@ public class ChampionshipsService
     private const int DefaultDrawPoints = 1;
 
     private readonly AppDbContext _context;
+    private readonly UniverseAuthorizer _authorizer;
 
-    public ChampionshipsService(AppDbContext context)
+    public ChampionshipsService(AppDbContext context, UniverseAuthorizer authorizer)
     {
         _context = context;
+        _authorizer = authorizer;
+    }
+
+    /// <summary>Requires the current user to be at least admin in the championship's universe.</summary>
+    private async Task RequireChampionshipAdminAsync(int championshipId)
+    {
+        var universeId = await _context.Championships
+            .Where(c => c.Id == championshipId)
+            .Select(c => (int?)c.UniverseId)
+            .FirstOrDefaultAsync();
+
+        if (universeId is not int id)
+            throw new NotFoundException("Campeonato não encontrado");
+
+        await _authorizer.RequireRoleAsync(id, UniverseRole.Admin);
     }
 
     // ---------------------------------------------------------------------
@@ -41,6 +58,8 @@ public class ChampionshipsService
         var formatExists = await _context.Formats.AnyAsync(f => f.Id == dto.FormatId);
         if (!formatExists)
             throw new NotFoundException("Formato não encontrado");
+
+        await _authorizer.RequireRoleAsync(dto.UniverseId, UniverseRole.Admin);
 
         Championship championship = new()
         {
@@ -220,6 +239,8 @@ public class ChampionshipsService
         if (championship == null)
             throw new NotFoundException("Campeonato não encontrado");
 
+        await _authorizer.RequireRoleAsync(championship.UniverseId, UniverseRole.Admin);
+
         if (championship.Name != dto.Name)
             championship.Slug = await GenerateUniqueSlugAsync(dto.Name, championship.UniverseId, id);
 
@@ -235,6 +256,8 @@ public class ChampionshipsService
 
         if (championship == null)
             throw new NotFoundException("Campeonato não encontrado");
+
+        await _authorizer.RequireRoleAsync(championship.UniverseId, UniverseRole.Admin);
 
         // Cascade delete removes phases, rounds, matches, team links, rules and enrollments.
         _context.Championships.Remove(championship);
@@ -261,6 +284,8 @@ public class ChampionshipsService
         var championship = await _context.Championships.FindAsync(championshipId);
         if (championship == null)
             throw new NotFoundException("Campeonato não encontrado");
+
+        await _authorizer.RequireRoleAsync(championship.UniverseId, UniverseRole.Admin);
 
         await EnsurePoolEditableAsync(championshipId);
 
@@ -313,6 +338,8 @@ public class ChampionshipsService
 
     public async Task RemoveTeamAsync(int championshipId, int teamId)
     {
+        await RequireChampionshipAdminAsync(championshipId);
+
         var link = await _context.ChampionshipTeams
             .FirstOrDefaultAsync(ct => ct.ChampionshipId == championshipId && ct.TeamId == teamId);
 
@@ -355,7 +382,7 @@ public class ChampionshipsService
     /// </summary>
     public async Task SetRuleAsync(int championshipId, ChampionshipRuleDto dto)
     {
-        await EnsureChampionshipExistsAsync(championshipId);
+        await RequireChampionshipAdminAsync(championshipId);
 
         var rule = await _context.ChampionshipRules
             .FirstOrDefaultAsync(r => r.ChampionshipId == championshipId && r.Key == dto.Key);
@@ -379,6 +406,8 @@ public class ChampionshipsService
 
     public async Task RemoveRuleAsync(int championshipId, string key)
     {
+        await RequireChampionshipAdminAsync(championshipId);
+
         var rule = await _context.ChampionshipRules
             .FirstOrDefaultAsync(r => r.ChampionshipId == championshipId && r.Key == key);
 
@@ -420,6 +449,8 @@ public class ChampionshipsService
         if (championship == null)
             throw new NotFoundException("Campeonato não encontrado");
 
+        await _authorizer.RequireRoleAsync(championship.UniverseId, UniverseRole.Admin);
+
         var player = await _context.Players
             .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.IsActive);
         if (player == null)
@@ -449,6 +480,8 @@ public class ChampionshipsService
     /// </summary>
     public async Task AssignTeamAsync(int championshipId, int playerId, AssignPlayerTeamDto dto)
     {
+        await RequireChampionshipAdminAsync(championshipId);
+
         var enrollment = await _context.PlayerChampionships
             .FirstOrDefaultAsync(pc => pc.ChampionshipId == championshipId && pc.PlayerId == playerId);
 
@@ -467,7 +500,7 @@ public class ChampionshipsService
     /// </summary>
     public async Task<List<ChampionshipPlayerDto>> DrawTeamsAsync(int championshipId)
     {
-        await EnsureChampionshipExistsAsync(championshipId);
+        await RequireChampionshipAdminAsync(championshipId);
 
         var enrollments = await _context.PlayerChampionships
             .Where(pc => pc.ChampionshipId == championshipId)
@@ -504,6 +537,8 @@ public class ChampionshipsService
 
     public async Task RemovePlayerAsync(int championshipId, int playerId)
     {
+        await RequireChampionshipAdminAsync(championshipId);
+
         var enrollment = await _context.PlayerChampionships
             .FirstOrDefaultAsync(pc => pc.ChampionshipId == championshipId && pc.PlayerId == playerId);
 

@@ -3,11 +3,13 @@ using MyCup.Data;
 using MyCup.DTOs.Universe;
 using MyCup.Errors;
 using MyCup.Models;
+using MyCup.Services.Authorization;
 
 namespace MyCup.Services;
 
 /// <summary>
-/// Service responsible for user-universe membership business rules (members and their roles).
+/// Service responsible for user-universe membership business rules (members and their roles). Managing
+/// members requires admin; only an owner may grant, change or remove the owner role.
 /// </summary>
 public class UserUniversesService
 {
@@ -21,10 +23,12 @@ public class UserUniversesService
     private const string OwnerRole = "owner";
 
     private readonly AppDbContext _context;
+    private readonly UniverseAuthorizer _authorizer;
 
-    public UserUniversesService(AppDbContext context)
+    public UserUniversesService(AppDbContext context, UniverseAuthorizer authorizer)
     {
         _context = context;
+        _authorizer = authorizer;
     }
 
     public async Task<List<UniverseMemberDto>> GetMembersAsync(int universeId)
@@ -48,7 +52,13 @@ public class UserUniversesService
     {
         await EnsureUniverseExistsAsync(universeId);
 
+        var callerRole = await _authorizer.RequireRoleAsync(universeId, UniverseRole.Admin);
+
         var role = NormalizeRole(dto.Role);
+
+        // Only an owner can grant the owner role.
+        if (role == OwnerRole && callerRole < UniverseRole.Owner)
+            throw new ForbiddenException("Apenas o owner pode conceder o cargo de owner");
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
         if (user == null)
@@ -70,12 +80,19 @@ public class UserUniversesService
 
     public async Task UpdateRoleAsync(int universeId, int userId, UpdateMemberRoleDto dto)
     {
+        var callerRole = await _authorizer.RequireRoleAsync(universeId, UniverseRole.Admin);
+
         var role = NormalizeRole(dto.Role);
 
         var membership = await _context.UserUniverses
             .FirstOrDefaultAsync(uu => uu.UniverseId == universeId && uu.UserId == userId);
         if (membership == null)
             throw new NotFoundException("Membro não encontrado neste universo");
+
+        // Only an owner can change a member to/from the owner role.
+        var touchesOwner = role == OwnerRole || membership.Role.Equals(OwnerRole, StringComparison.OrdinalIgnoreCase);
+        if (touchesOwner && callerRole < UniverseRole.Owner)
+            throw new ForbiddenException("Apenas o owner pode gerenciar o cargo de owner");
 
         // A universe must always keep at least one owner.
         if (membership.Role.Equals(OwnerRole, StringComparison.OrdinalIgnoreCase)
@@ -91,10 +108,16 @@ public class UserUniversesService
 
     public async Task RemoveMemberAsync(int universeId, int userId)
     {
+        var callerRole = await _authorizer.RequireRoleAsync(universeId, UniverseRole.Admin);
+
         var membership = await _context.UserUniverses
             .FirstOrDefaultAsync(uu => uu.UniverseId == universeId && uu.UserId == userId);
         if (membership == null)
             throw new NotFoundException("Membro não encontrado neste universo");
+
+        // Only an owner can remove another owner.
+        if (membership.Role.Equals(OwnerRole, StringComparison.OrdinalIgnoreCase) && callerRole < UniverseRole.Owner)
+            throw new ForbiddenException("Apenas o owner pode remover um owner");
 
         if (membership.Role.Equals(OwnerRole, StringComparison.OrdinalIgnoreCase)
             && await IsLastOwnerAsync(universeId, userId))
