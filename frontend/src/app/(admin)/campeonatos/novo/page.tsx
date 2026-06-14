@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -10,9 +10,12 @@ import {
   ChevronLeft, ChevronRight, Trophy, LayoutList,
   Swords, Layers, Check, Users, Shuffle, Hand,
 } from "lucide-react";
-import { mockUniversosOptions } from "@/lib/mocks/campeonatos";
-import type { CreateChampionshipRequest, ChampionshipFormat, ChampionshipDistribution } from "@/lib/types";
-// import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
+import type {
+  CreateChampionshipRequest, ChampionshipFormat, ChampionshipDistribution, UniverseListItem,
+} from "@/lib/types";
+import { FORMAT_IDS } from "@/lib/types";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const step1Schema = z.object({
@@ -33,23 +36,24 @@ type Step2 = { formato: string };
 type Step3 = { distribuicao: string };
 
 // ── Formats config ─────────────────────────────────────────────────────────────
+// `value` usa o Format.Type real do backend (inglês); o label fica em PT para o usuário.
 const formatos = [
   {
-    value: "pontos_corridos",
+    value: "round_robin",
     label: "Pontos Corridos",
     desc: "Todos contra todos. Classificação por pontos ao longo das rodadas.",
     icon: LayoutList,
     detail: "N times → N-1 rodadas → N/2 partidas por rodada",
   },
   {
-    value: "mata_mata",
+    value: "knockout",
     label: "Mata-mata",
     desc: "Eliminação direta. Perdeu, saiu.",
     icon: Swords,
     detail: "Oitavas → Quartas → Semi → Final",
   },
   {
-    value: "grupos_mata_mata",
+    value: "groups_knockout",
     label: "Grupos + Mata-mata",
     desc: "Fase de grupos seguida de eliminatórias com os classificados.",
     icon: Layers,
@@ -224,6 +228,15 @@ export default function NovoCampeonatoPage() {
   const [step2Data, setStep2Data] = useState<Partial<Step2>>({});
   const [step3Data, setStep3Data] = useState<Partial<Step3>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [universos, setUniversos] = useState<UniverseListItem[]>([]);
+
+  useEffect(() => {
+    api
+      .get<UniverseListItem[]>("/api/universes")
+      .then(setUniversos)
+      .catch((e) => toast.error((e as Error).message));
+  }, []);
 
   // Step 1 form
   const form1 = useForm<Step1>({
@@ -260,24 +273,26 @@ export default function NovoCampeonatoPage() {
 
   async function handleSubmit() {
     setSubmitting(true);
+    setSubmitError(null);
     try {
+      const format = step2Data.formato as ChampionshipFormat;
       const body: CreateChampionshipRequest = {
         name: step1Data.nome!,
-        format: step2Data.formato as ChampionshipFormat,
+        format,
         distribution: step3Data.distribuicao as ChampionshipDistribution,
         universeId: Number(step1Data.universoid),
+        formatId: FORMAT_IDS[format],
       };
-      // TODO: ligar quando o backend tiver controller
-      // await api.post(`/api/universes/${body.universeId}/championships`, body);
-      console.log("Criar campeonato:", body);
-      await new Promise((r) => setTimeout(r, 800));
-      router.push("/campeonatos");
-    } finally {
+      const created = await api.post<{ id: number; message: string }>("/api/championships", body);
+      // Recém-criado vem como draft (sem times/chaveamento): leva direto à configuração.
+      router.push(`/campeonatos/${created.id}/configurar`);
+    } catch (e) {
+      setSubmitError((e as Error).message);
       setSubmitting(false);
     }
   }
 
-  const universeSelecionado = mockUniversosOptions.find((u) => u.id === Number(step1Data.universoid));
+  const universeSelecionado = universos.find((u) => u.id === Number(step1Data.universoid));
   const formatoSelecionado  = formatos.find((f) => f.value === step2Data.formato);
   const distSelecionada     = distribuicoes.find((d) => d.value === step3Data.distribuicao);
 
@@ -345,7 +360,7 @@ export default function NovoCampeonatoPage() {
                 }}
               >
                 <option value="">Selecione um universo</option>
-                {mockUniversosOptions.map((u) => (
+                {universos.map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
               </select>
@@ -442,6 +457,10 @@ export default function NovoCampeonatoPage() {
               <SummaryRow icon={LayoutList} label="Formato"     value={formatoSelecionado?.label ?? "—"} />
               <SummaryRow icon={Users}     label="Distribuição" value={distSelecionada?.label ?? "—"} />
             </div>
+
+            {submitError && (
+              <p className="text-sm" style={{ color: "var(--mc-danger)" }}>{submitError}</p>
+            )}
 
             <div className="flex gap-3 pt-1">
               <button
