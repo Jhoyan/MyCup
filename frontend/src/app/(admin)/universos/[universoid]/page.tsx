@@ -110,6 +110,15 @@ export default function UniversoPage() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Link
+              href={`/universos/${universoid}/membros`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              style={{ border: "1px solid var(--mc-border)", color: "var(--mc-text)", background: "var(--mc-surface)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-bg)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-surface)")}
+            >
+              <Users size={14} /> Membros
+            </Link>
+            <Link
               href={`/universos/${universoid}/jogadores/novo`}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
               style={{ border: "1px solid var(--mc-border)", color: "var(--mc-text)", background: "var(--mc-surface)" }}
@@ -119,7 +128,7 @@ export default function UniversoPage() {
               <User size={14} /> Jogador
             </Link>
             <Link
-              href={`/universos/${universoid}/campeonatos/novo`}
+              href="/campeonatos/novo"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
               style={{ background: "var(--mc-primary)" }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
@@ -249,9 +258,6 @@ function JogadoresTab({
                 Gols
               </th>
               <th className="text-center px-2 py-3 text-[0.72rem] font-bold uppercase tracking-wide" style={{ color: "var(--mc-text-muted)" }}>
-                Assist.
-              </th>
-              <th className="text-center px-2 py-3 text-[0.72rem] font-bold uppercase tracking-wide" style={{ color: "var(--mc-text-muted)" }}>
                 Camp.
               </th>
               <th className="px-2 py-3 w-10" />
@@ -318,9 +324,6 @@ function PlayerRow({
       </td>
       <td className="px-2 py-3 text-center text-sm font-bold" style={{ color: "var(--mc-primary)" }}>
         {player.goals}
-      </td>
-      <td className="px-2 py-3 text-center text-sm" style={{ color: "var(--mc-text)" }}>
-        {player.assists}
       </td>
       <td className="px-2 py-3 text-center text-sm" style={{ color: "var(--mc-text-muted)" }}>
         {player.championships}
