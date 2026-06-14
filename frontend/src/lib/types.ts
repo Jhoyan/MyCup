@@ -78,11 +78,45 @@ export type UniverseDetail = {
   championships: ChampionshipSummary[];
 };
 
+// ─── Membros do universo (RBAC) ───────────────────────────────────────────────
+// Cargos ranqueados: owner > admin > moderator.
+export type UniverseRole = "owner" | "admin" | "moderator";
+
+// Espelha UniverseMemberDto.
+export type UniverseMember = {
+  userId: number;
+  name: string;
+  email: string;
+  role: UniverseRole;
+};
+
+// Espelha AddMemberDto — adiciona um usuário existente (resolvido por email).
+export type AddMemberRequest = {
+  email: string;
+  role: UniverseRole;
+};
+
+// Espelha UpdateMemberRoleDto.
+export type UpdateMemberRoleRequest = {
+  role: UniverseRole;
+};
+
 // ─── Campeonatos ──────────────────────────────────────────────────────────────
-export type ChampionshipFormat = "pontos_corridos" | "mata_mata" | "grupos_mata_mata";
+// Os valores espelham exatamente o que o backend serializa (inglês, snake_case).
+// Format.Type seed fixo: 1=round_robin, 2=knockout, 3=groups_knockout (ver FORMAT_IDS).
+export type ChampionshipFormat = "round_robin" | "knockout" | "groups_knockout";
 export type ChampionshipDistribution = "manual" | "sorteio" | "escolha";
-export type ChampionshipStatus = "agendada" | "em_andamento" | "finalizada";
-export type MatchStatus = "agendada" | "em_andamento" | "finalizada";
+// Status é derivado das partidas no backend (sem coluna): draft → ongoing → finished.
+export type ChampionshipStatus = "draft" | "ongoing" | "finished";
+// Status de partida/rodada: scheduled → ongoing → finished.
+export type MatchStatus = "scheduled" | "ongoing" | "finished";
+
+// Mapa format → formatId exigido pelo CreateChampionshipDto (seed em AppDbContext).
+export const FORMAT_IDS: Record<ChampionshipFormat, number> = {
+  round_robin: 1,
+  knockout: 2,
+  groups_knockout: 3,
+};
 
 export type ChampionshipSummary = {
   id: number;
@@ -94,19 +128,40 @@ export type ChampionshipSummary = {
   totalRounds: number;
 };
 
-// ⚠️ Contrato em aberto: CreateChampionshipDto exige também `formatId` (int) e tem
-// um `format` (string) redundante. Definir o mapeamento format→formatId depende do
-// seed de Formats (BE-015) e do controller (BE-003). Não incluído até alinhar (INT-001).
+// Espelha CreateChampionshipDto: { name, format, distribution, universeId, formatId }.
+// `formatId` deriva de `format` via FORMAT_IDS; o backend pede ambos.
 export type CreateChampionshipRequest = {
   name: string;
   format: ChampionshipFormat;
   distribution: ChampionshipDistribution;
   universeId: number;
+  formatId: number;
+};
+
+// Espelha GenerateChampionshipDto (POST /championships/{id}/generate). Todos opcionais
+// com default no backend; só os campos relevantes ao formato são usados. Persistidos
+// como ChampionshipRule. Ver docs/be-008-fixtures.md §4.
+export type GenerateChampionshipRequest = {
+  doubleRound?: boolean;
+  thirdPlace?: boolean;
+  elimination?: "single" | "double";
+  bracketSeeding?: "cross_adjacent" | "seeded_best_vs_worst";
+  groupsCount?: number;
+  groupSize?: number;
+  qualifiersPerGroup?: number;
 };
 
 export type TeamSummary = {
   id: number;
   name: string;
+};
+
+// Espelha ChampionshipPlayerDto — jogador inscrito + time atribuído (null se sem time).
+export type ChampionshipPlayer = {
+  playerId: number;
+  playerName: string;
+  teamId: number | null;
+  teamName: string | null;
 };
 
 export type UniverseSummary = {
@@ -127,12 +182,22 @@ export type StandingsRow = {
   points: number;
 };
 
+// Espelha GroupStandingsDto — classificação de um grupo (formato groups_knockout).
+export type GroupStandings = {
+  group: string;
+  standings: StandingsRow[];
+};
+
+// Espelha MatchSummaryDto. homeTeam/awayTeam são null enquanto a vaga do mata-mata
+// não está definida (bracket pré-gerado). homePenalties/awayPenalties decidem empate.
 export type MatchSummary = {
   id: number;
-  homeTeam: string;
-  awayTeam: string;
+  homeTeam: string | null;
+  awayTeam: string | null;
   homeGoals: number | null;
   awayGoals: number | null;
+  homePenalties: number | null;
+  awayPenalties: number | null;
   status: MatchStatus;
   date: string | null;
 };
@@ -154,7 +219,10 @@ export type ChampionshipDetail = {
   currentRound: number;
   totalRounds: number;
   teams: TeamSummary[];
+  // Tabela única (round_robin). Vazia para os outros formatos.
   standings: StandingsRow[];
+  // Tabela por grupo (groups_knockout). Vazia para os outros formatos.
+  groups: GroupStandings[];
   rounds: RoundSummary[];
 };
 
@@ -301,15 +369,12 @@ export type UpdatePlayerRequest = {
 };
 
 // ─── Matches ──────────────────────────────────────────────────────────────────
-export type MatchStatisticInput = {
-  playerId: number;
-  goals: number;
-  assists: number;
-};
-
+// Espelha UpdateMatchResultDto (PUT /api/matches/{id}). Sem estatísticas individuais
+// (backend só guarda placar final). Pênaltis decidem empate no mata-mata (nuláveis).
 export type UpdateMatchResultRequest = {
   homeGoals: number;
   awayGoals: number;
+  homePenalties?: number | null;
+  awayPenalties?: number | null;
   status: MatchStatus;
-  statistics: MatchStatisticInput[];
 };
