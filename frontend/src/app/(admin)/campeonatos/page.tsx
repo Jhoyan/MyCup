@@ -1,30 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Trophy, Globe, Shirt, TrendingUp, CalendarDays, ChevronRight, Plus, Search } from "lucide-react";
-import { mockCampeonatosLista, type CampeonatoListItem } from "@/lib/mocks/campeonatos";
+import { Trophy, Globe, Shirt, TrendingUp, CalendarDays, ChevronRight, Plus, Search, Loader2, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
+import type { ChampionshipSummary, UniverseListItem } from "@/lib/types";
+
+// Item da lista = resumo do campeonato + o universo a que pertence (anexado no front,
+// já que /championships?universeId não embute o universo).
+type CampeonatoListItem = ChampionshipSummary & {
+  universe: { id: number; name: string };
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Labels mapeados dos valores reais do backend (inglês).
 const FORMAT_LABEL: Record<string, string> = {
-  pontos_corridos:   "Pontos Corridos",
-  mata_mata:         "Mata-mata",
-  grupos_mata_mata:  "Grupos + Mata-mata",
+  round_robin:     "Pontos Corridos",
+  knockout:        "Mata-mata",
+  groups_knockout: "Grupos + Mata-mata",
 };
 
 const STATUS_FILTERS = [
-  { value: "todos",        label: "Todos"        },
-  { value: "em_andamento", label: "Em andamento" },
-  { value: "agendada",     label: "Agendados"    },
-  { value: "finalizada",   label: "Finalizados"  },
+  { value: "todos",    label: "Todos"        },
+  { value: "ongoing",  label: "Em andamento" },
+  { value: "draft",    label: "Rascunho"     },
+  { value: "finished", label: "Finalizados"  },
 ] as const;
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    em_andamento: { label: "Em andamento", cls: "mc-badge mc-badge-andamento"  },
-    agendada:     { label: "Agendado",     cls: "mc-badge mc-badge-agendada"   },
-    finalizada:   { label: "Finalizado",   cls: "mc-badge mc-badge-finalizada" },
+    ongoing:  { label: "Em andamento", cls: "mc-badge mc-badge-andamento"  },
+    draft:    { label: "Rascunho",     cls: "mc-badge mc-badge-agendada"   },
+    finished: { label: "Finalizado",   cls: "mc-badge mc-badge-finalizada" },
   };
   const item = map[status] ?? { label: status, cls: "mc-badge mc-badge-agendada" };
   return <span className={item.cls}>{item.label}</span>;
@@ -35,8 +43,35 @@ function StatusBadge({ status }: { status: string }) {
 export default function CampeonatosPage() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [busca, setBusca] = useState("");
+  const [lista, setLista] = useState<CampeonatoListItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtrados = mockCampeonatosLista.filter((c) => {
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        // Sem endpoint global: agrega os campeonatos de cada universo e anexa o universo.
+        const universes = await api.get<UniverseListItem[]>("/api/universes");
+        const lists = await Promise.all(
+          universes.map(async (u) => {
+            const champs = await api.get<ChampionshipSummary[]>(`/api/championships?universeId=${u.id}`);
+            return champs.map((c) => ({ ...c, universe: { id: u.id, name: u.name } }));
+          }),
+        );
+        if (!active) return;
+        setLista(lists.flat().sort((a, b) => b.id - a.id));
+      } catch (e) {
+        if (active) setError((e as Error).message);
+      }
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const all = lista ?? [];
+  const filtrados = all.filter((c) => {
     const matchStatus = filtroStatus === "todos" || c.status === filtroStatus;
     const term = busca.toLowerCase();
     const matchBusca = c.name.toLowerCase().includes(term) || c.universe.name.toLowerCase().includes(term);
@@ -44,10 +79,10 @@ export default function CampeonatosPage() {
   });
 
   const counts = {
-    todos:        mockCampeonatosLista.length,
-    em_andamento: mockCampeonatosLista.filter((c) => c.status === "em_andamento").length,
-    agendada:     mockCampeonatosLista.filter((c) => c.status === "agendada").length,
-    finalizada:   mockCampeonatosLista.filter((c) => c.status === "finalizada").length,
+    todos:    all.length,
+    ongoing:  all.filter((c) => c.status === "ongoing").length,
+    draft:    all.filter((c) => c.status === "draft").length,
+    finished: all.filter((c) => c.status === "finished").length,
   };
 
   return (
@@ -60,7 +95,7 @@ export default function CampeonatosPage() {
             Campeonatos
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--mc-text-muted)" }}>
-            {mockCampeonatosLista.length} campeonatos no total
+            {all.length} campeonatos no total
           </p>
         </div>
         <Link
@@ -130,7 +165,11 @@ export default function CampeonatosPage() {
       </div>
 
       {/* List */}
-      {filtrados.length === 0 ? (
+      {error ? (
+        <ErrorState message={error} />
+      ) : lista === null ? (
+        <LoadingState />
+      ) : filtrados.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-3">
@@ -185,7 +224,7 @@ function CampeonatoRow({ campeonato: c }: { campeonato: CampeonatoListItem }) {
         </div>
       </div>
 
-      {c.status === "em_andamento" && (
+      {c.status === "ongoing" && (
         <div className="hidden sm:block w-36 shrink-0">
           <div className="flex justify-between text-[0.65rem] mb-1.5" style={{ color: "var(--mc-text-muted)" }}>
             <span className="flex items-center gap-1"><TrendingUp size={10} /> Rodada {c.currentRound}/{c.totalRounds}</span>
@@ -200,13 +239,13 @@ function CampeonatoRow({ campeonato: c }: { campeonato: CampeonatoListItem }) {
         </div>
       )}
 
-      {c.status === "agendada" && (
+      {c.status === "draft" && (
         <div className="hidden sm:flex items-center gap-1 text-xs shrink-0" style={{ color: "var(--mc-text-muted)" }}>
           <CalendarDays size={13} /> Não iniciado
         </div>
       )}
 
-      {c.status === "finalizada" && (
+      {c.status === "finished" && (
         <div className="hidden sm:flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: "var(--mc-text-muted)" }}>
           <Trophy size={13} /> Concluído
         </div>
@@ -214,6 +253,32 @@ function CampeonatoRow({ campeonato: c }: { campeonato: CampeonatoListItem }) {
 
       <ChevronRight size={16} style={{ color: "var(--mc-text-muted)", flexShrink: 0 }} />
     </Link>
+  );
+}
+
+// ── Loading / Error states ────────────────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <Loader2 className="animate-spin mb-3" size={28} style={{ color: "var(--mc-primary)" }} />
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>Carregando campeonatos...</p>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center py-20 rounded-2xl text-center"
+      style={{ border: "1px solid var(--mc-border)", background: "var(--mc-surface)" }}
+    >
+      <AlertCircle size={28} className="mb-3" style={{ color: "var(--mc-danger)" }} />
+      <p className="font-bold text-base mb-1" style={{ color: "var(--mc-text)" }}>
+        Não foi possível carregar
+      </p>
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>{message}</p>
+    </div>
   );
 }
 

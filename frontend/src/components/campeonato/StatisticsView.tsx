@@ -1,11 +1,37 @@
 "use client";
 
 import {
-  Target, Crosshair, Zap, Flame, BarChart3, Shield, ShieldAlert, Trophy,
+  Target, Crosshair, Zap, Flame, BarChart3, Shield, ShieldAlert, Trophy, Swords,
 } from "lucide-react";
 import type { ChampionshipStatistics } from "@/lib/types";
 
-export default function StatisticsView({ stats }: { stats: ChampionshipStatistics }) {
+// Média de ataque/defesa de um time (nome + média de gols por jogo).
+export type TeamAvg = { name: string; average: number };
+
+export default function StatisticsView({
+  stats,
+  attack,
+}: {
+  stats: ChampionshipStatistics;
+  attack: { best: TeamAvg; worst: TeamAvg } | null;
+}) {
+  // O backend devolve sentinela vazia (não null) quando não há dado de origem:
+  // assistências (sem evento individual) e virada (sem progressão de placar).
+  const hasAssists = stats.mostAssists.name !== "";
+  const hasComeback = stats.biggestComeback.description !== "";
+
+  // Sem partidas finalizadas o backend devolve tudo zerado/vazio.
+  if (stats.topScorers.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <BarChart3 size={32} className="mx-auto mb-3" style={{ color: "var(--mc-text-subtle)" }} />
+        <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>
+          Ainda não há estatísticas. Lance resultados para vê-las aqui.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
@@ -20,15 +46,17 @@ export default function StatisticsView({ stats }: { stats: ChampionshipStatistic
           value={stats.topScorer.goals}
           unit="gols"
         />
-        <HighlightCard
-          icon={Crosshair}
-          color="#8b5cf6"
-          label="Mais assistências"
-          name={stats.mostAssists.name}
-          subtitle={stats.mostAssists.team}
-          value={stats.mostAssists.assists}
-          unit="assist."
-        />
+        {hasAssists && (
+          <HighlightCard
+            icon={Crosshair}
+            color="#8b5cf6"
+            label="Mais assistências"
+            name={stats.mostAssists.name}
+            subtitle={stats.mostAssists.team}
+            value={stats.mostAssists.assists}
+            unit="assist."
+          />
+        )}
         <HighlightCard
           icon={Trophy}
           color="var(--mc-accent)"
@@ -50,7 +78,7 @@ export default function StatisticsView({ stats }: { stats: ChampionshipStatistic
       </div>
 
       {/* Match highlights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${hasComeback ? "lg:grid-cols-2" : ""}`}>
         <MatchHighlightCard
           icon={Flame}
           color="var(--mc-danger)"
@@ -72,15 +100,17 @@ export default function StatisticsView({ stats }: { stats: ChampionshipStatistic
           </div>
         </MatchHighlightCard>
 
-        <MatchHighlightCard
-          icon={Zap}
-          color="var(--mc-warning)"
-          label="Maior virada"
-        >
-          <p className="text-sm font-semibold text-center" style={{ color: "var(--mc-text)" }}>
-            {stats.biggestComeback.description}
-          </p>
-        </MatchHighlightCard>
+        {hasComeback && (
+          <MatchHighlightCard
+            icon={Zap}
+            color="var(--mc-warning)"
+            label="Maior virada"
+          >
+            <p className="text-sm font-semibold text-center" style={{ color: "var(--mc-text)" }}>
+              {stats.biggestComeback.description}
+            </p>
+          </MatchHighlightCard>
+        )}
       </div>
 
       {/* Gols sofridos por partida */}
@@ -114,6 +144,40 @@ export default function StatisticsView({ stats }: { stats: ChampionshipStatistic
           Calculado como média (gols sofridos ÷ partidas jogadas) para evitar distorção de times eliminados cedo.
         </p>
       </div>
+
+      {/* Gols marcados por partida */}
+      {attack && (
+        <div
+          className="rounded-xl p-5"
+          style={{ background: "var(--mc-surface)", border: "1px solid var(--mc-border)" }}
+        >
+          <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: "var(--mc-text)" }}>
+            <Swords size={14} style={{ color: "var(--mc-primary)" }} />
+            Gols marcados por partida
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DefenseRow
+              icon={Target}
+              color="var(--mc-accent)"
+              label="Melhor ataque"
+              team={attack.best.name}
+              average={attack.best.average}
+            />
+            <DefenseRow
+              icon={Crosshair}
+              color="var(--mc-danger)"
+              label="Pior ataque"
+              team={attack.worst.name}
+              average={attack.worst.average}
+            />
+          </div>
+
+          <p className="text-[0.7rem] mt-3" style={{ color: "var(--mc-text-subtle)" }}>
+            Calculado como média (gols marcados ÷ partidas jogadas).
+          </p>
+        </div>
+      )}
 
       {/* Top artilheiros */}
       <div

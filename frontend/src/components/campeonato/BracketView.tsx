@@ -1,16 +1,21 @@
 "use client";
 
-import { CheckCircle2, Clock, Circle, Trophy } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, Clock, Circle, Trophy, Pencil } from "lucide-react";
 import type { Bracket, BracketMatch } from "@/lib/types";
+import InlineResultForm from "./InlineResultForm";
 
 // Visualização de chaveamento (mata-mata). Scroll horizontal entre fases.
+// Cada partida com os dois times definidos pode ter o resultado lançado inline (lápis).
 
 export default function BracketView({
   bracket,
-  onMatchClick,
+  campeonatoId,
+  onResultSaved,
 }: {
   bracket: Bracket;
-  onMatchClick?: (matchId: number) => void;
+  campeonatoId: string;
+  onResultSaved: () => void;
 }) {
   if (!bracket.rounds.length) {
     return (
@@ -56,7 +61,7 @@ export default function BracketView({
                       marginBottom: roundIndex > 0 ? `${(spacing - 1) * 22}px` : 0,
                     }}
                   >
-                    <BracketMatchCard match={match} onClick={onMatchClick} />
+                    <BracketMatchCard match={match} campeonatoId={campeonatoId} onResultSaved={onResultSaved} />
                   </div>
                 ))}
               </div>
@@ -70,18 +75,21 @@ export default function BracketView({
 
 function BracketMatchCard({
   match,
-  onClick,
+  campeonatoId,
+  onResultSaved,
 }: {
   match: BracketMatch;
-  onClick?: (matchId: number) => void;
+  campeonatoId: string;
+  onResultSaved: () => void;
 }) {
-  const finalizada = match.status === "finalizada";
-  const emAndamento = match.status === "em_andamento";
+  const [editing, setEditing] = useState(false);
+  const finalizada = match.status === "finished";
+  const emAndamento = match.status === "ongoing";
+  const editable = !!match.homeTeam && !!match.awayTeam;
 
   return (
-    <button
-      onClick={() => onClick?.(match.id)}
-      className="w-56 rounded-lg overflow-hidden text-left transition-all hover:shadow-md"
+    <div
+      className="w-56 rounded-lg overflow-hidden text-left"
       style={{
         background: "var(--mc-surface)",
         border: `1px solid ${emAndamento ? "var(--mc-warning)" : "var(--mc-border)"}`,
@@ -103,13 +111,42 @@ function BracketMatchCard({
           {finalizada ? "Finalizada" : emAndamento ? "Ao vivo" : "Agendada"}
         </span>
         <span className="ml-auto opacity-50">#{match.id}</span>
+        {editable && !editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="ml-1 p-0.5 rounded transition-colors hover:bg-[var(--mc-border)]"
+            style={{ color: "var(--mc-primary)" }}
+            title="Lançar resultado"
+            aria-label="Lançar resultado"
+          >
+            <Pencil size={11} />
+          </button>
+        )}
       </div>
 
       {/* Teams */}
       <BracketTeamRow team={match.homeTeam} winnerId={match.winnerId} />
       <div style={{ borderTop: "1px solid var(--mc-border)" }} />
       <BracketTeamRow team={match.awayTeam} winnerId={match.winnerId} />
-    </button>
+
+      {/* Edição rápida inline */}
+      {editing && (
+        <div
+          className="px-2 py-2 flex justify-center"
+          style={{ background: "var(--mc-bg)", borderTop: "1px solid var(--mc-border)" }}
+        >
+          <InlineResultForm
+            matchId={match.id}
+            initialHome={match.homeTeam?.goals ?? null}
+            initialAway={match.awayTeam?.goals ?? null}
+            onSaved={() => { setEditing(false); onResultSaved(); }}
+            onCancel={() => setEditing(false)}
+            fullEditorHref={`/campeonatos/${campeonatoId}/partidas/${match.id}`}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

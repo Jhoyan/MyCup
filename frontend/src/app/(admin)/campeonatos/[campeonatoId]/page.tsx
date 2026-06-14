@@ -1,36 +1,35 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ChevronLeft, ChevronRight, Trophy, Globe, Shirt, TrendingUp,
   CalendarDays, BarChart2, Network, ChartColumn,
-  CheckCircle2, Clock, Circle,
+  CheckCircle2, Clock, Circle, Loader2, AlertCircle, Settings2,
 } from "lucide-react";
-import {
-  getMockCampeonatoDetail,
-  mockCampeonatoStatistics,
-  mockCampeonatoBracket,
-} from "@/lib/mocks/campeonatos";
+import { api } from "@/lib/api";
 import type {
-  ChampionshipDetail, StandingsRow, RoundSummary, MatchSummary,
+  ChampionshipDetail, StandingsRow, GroupStandings, RoundSummary, MatchSummary,
+  Bracket, ChampionshipStatistics,
 } from "@/lib/types";
+import InlineResultForm from "@/components/campeonato/InlineResultForm";
 import BracketView from "@/components/campeonato/BracketView";
 import StatisticsView from "@/components/campeonato/StatisticsView";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Labels mapeados dos valores reais do backend (inglês).
 const FORMAT_LABEL: Record<string, string> = {
-  pontos_corridos:   "Pontos Corridos",
-  mata_mata:         "Mata-mata",
-  grupos_mata_mata:  "Grupos + Mata-mata",
+  round_robin:     "Pontos Corridos",
+  knockout:        "Mata-mata",
+  groups_knockout: "Grupos + Mata-mata",
 };
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  em_andamento: { label: "Em andamento", cls: "mc-badge mc-badge-andamento"  },
-  agendada:     { label: "Agendado",     cls: "mc-badge mc-badge-agendada"   },
-  finalizada:   { label: "Finalizado",   cls: "mc-badge mc-badge-finalizada" },
+  ongoing:  { label: "Em andamento", cls: "mc-badge mc-badge-andamento"  },
+  draft:    { label: "Rascunho",     cls: "mc-badge mc-badge-agendada"   },
+  finished: { label: "Finalizado",   cls: "mc-badge mc-badge-finalizada" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -39,18 +38,70 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function MatchStatusIcon({ status }: { status: string }) {
-  if (status === "finalizada")   return <CheckCircle2 size={13} style={{ color: "var(--mc-accent)" }} />;
-  if (status === "em_andamento") return <Clock size={13} style={{ color: "var(--mc-warning)" }} />;
+  if (status === "finished") return <CheckCircle2 size={13} style={{ color: "var(--mc-accent)" }} />;
+  if (status === "ongoing")  return <Clock size={13} style={{ color: "var(--mc-warning)" }} />;
   return <Circle size={13} style={{ color: "var(--mc-text-muted)" }} />;
 }
 
-// Nomes de rodadas que pertencem à fase eliminatória (bracket)
+// Nomes de rodadas eliminatórias gerados pelo backend (Round.Name em PT).
 const ELIMINATION_ROUND_NAMES = new Set([
-  "Oitavas", "Quartas", "Semi", "Semifinal", "Final",
+  "Oitavas de final", "Quartas de final", "Semifinal", "Final",
+  "Disputa de 3º lugar", "Grande final",
 ]);
 
 function isEliminationRound(round: RoundSummary): boolean {
   return !!round.name && ELIMINATION_ROUND_NAMES.has(round.name);
+}
+
+// Melhor/pior ataque (gols marcados ÷ jogos), derivado das partidas finalizadas —
+// mesmo conjunto que o backend usa na defesa. O backend não expõe esse dado pronto.
+function computeAttack(
+  rounds: RoundSummary[],
+): { best: { name: string; average: number }; worst: { name: string; average: number } } | null {
+  const acc = new Map<string, { goals: number; played: number }>();
+  for (const round of rounds) {
+    for (const m of round.matches) {
+      if (m.status !== "finished" || !m.homeTeam || !m.awayTeam) continue;
+      const home = acc.get(m.homeTeam) ?? { goals: 0, played: 0 };
+      home.goals += m.homeGoals ?? 0;
+      home.played += 1;
+      acc.set(m.homeTeam, home);
+      const away = acc.get(m.awayTeam) ?? { goals: 0, played: 0 };
+      away.goals += m.awayGoals ?? 0;
+      away.played += 1;
+      acc.set(m.awayTeam, away);
+    }
+  }
+  const rows = [...acc.entries()]
+    .filter(([, v]) => v.played > 0)
+    .map(([name, v]) => ({ name, average: v.goals / v.played }));
+  if (rows.length === 0) return null;
+  rows.sort((a, b) => b.average - a.average);
+  return { best: rows[0], worst: rows[rows.length - 1] };
+}
+
+function LoadingState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <Loader2 className="animate-spin mb-3" size={28} style={{ color: "var(--mc-primary)" }} />
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>Carregando campeonato...</p>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center py-20 rounded-2xl text-center"
+      style={{ border: "1px solid var(--mc-border)", background: "var(--mc-surface)" }}
+    >
+      <AlertCircle size={28} className="mb-3" style={{ color: "var(--mc-danger)" }} />
+      <p className="font-bold text-base mb-1" style={{ color: "var(--mc-text)" }}>
+        Não foi possível carregar
+      </p>
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>{message}</p>
+    </div>
+  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -60,21 +111,60 @@ type Tab = "classificacao" | "eliminatorias" | "estatisticas";
 export default function CampeonatoPage() {
   const { campeonatoId } = useParams<{ campeonatoId: string }>();
   const [tab, setTab] = useState<Tab>("classificacao");
+  const [c, setC] = useState<ChampionshipDetail | null>(null);
+  const [bracket, setBracket] = useState<Bracket | null>(null);
+  const [stats, setStats] = useState<ChampionshipStatistics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const c: ChampionshipDetail = getMockCampeonatoDetail(campeonatoId);
-  const hasBracket = c.format === "mata_mata" || c.format === "grupos_mata_mata";
+  // silent = recarrega sem mostrar o spinner de página inteira (usado após salvar inline).
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      const detail = await api.get<ChampionshipDetail>(`/api/championships/${campeonatoId}`);
+      const needsBracket = detail.format === "knockout" || detail.format === "groups_knockout";
+      const [bracketData, statsData] = await Promise.all([
+        needsBracket
+          ? api.get<Bracket>(`/api/championships/${campeonatoId}/bracket`)
+          : Promise.resolve(null),
+        api.get<ChampionshipStatistics>(`/api/championships/${campeonatoId}/statistics`),
+      ]);
+      setC(detail);
+      setBracket(bracketData);
+      setStats(statsData);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [campeonatoId]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const hasBracket = c?.format === "knockout" || c?.format === "groups_knockout";
+  // Mata-mata puro não tem fase de classificação (só bracket).
+  const showClassificacao = !!c && c.format !== "knockout";
+
+  // Mantém a aba selecionada sempre numa aba visível para o formato atual.
+  useEffect(() => {
+    if (!c) return;
+    if (tab === "classificacao" && !showClassificacao) setTab("eliminatorias");
+    else if (tab === "eliminatorias" && !hasBracket) setTab("classificacao");
+  }, [tab, hasBracket, showClassificacao, c]);
+
+  if (error) return <ErrorState message={error} />;
+  if (loading || !c || !stats) return <LoadingState />;
+
   const progresso = c.totalRounds > 0 ? Math.round((c.currentRound / c.totalRounds) * 100) : 0;
 
   const tabs: { value: Tab; label: string; icon: React.ElementType; show: boolean }[] = [
-    { value: "classificacao",  label: "Classificação",  icon: BarChart2,    show: true       },
-    { value: "eliminatorias",  label: "Eliminatórias",   icon: Network,      show: hasBracket },
-    { value: "estatisticas",   label: "Estatísticas",    icon: ChartColumn,  show: true       },
+    { value: "classificacao",  label: "Classificação",  icon: BarChart2,    show: showClassificacao },
+    { value: "eliminatorias",  label: "Eliminatórias",   icon: Network,      show: hasBracket        },
+    { value: "estatisticas",   label: "Estatísticas",    icon: ChartColumn,  show: true              },
   ];
-
-  // Se o campeonato mudou para um formato sem bracket, voltar para classificação
-  useEffect(() => {
-    if (tab === "eliminatorias" && !hasBracket) setTab("classificacao");
-  }, [tab, hasBracket]);
 
   return (
     <div className="space-y-6 max-w-[1280px]">
@@ -124,19 +214,31 @@ export default function CampeonatoPage() {
             </div>
           </div>
 
-          <Link
-            href={`/campeonatos/${campeonatoId}/partidas`}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors shrink-0"
-            style={{ background: "var(--mc-primary)" }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
-          >
-            <CalendarDays size={14} /> Lançar resultado
-          </Link>
+          {c.status === "draft" ? (
+            <Link
+              href={`/campeonatos/${campeonatoId}/configurar`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors shrink-0"
+              style={{ background: "var(--mc-primary)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
+            >
+              <Settings2 size={14} /> Configurar
+            </Link>
+          ) : (
+            <Link
+              href={`/campeonatos/${campeonatoId}/partidas`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors shrink-0"
+              style={{ background: "var(--mc-primary)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
+            >
+              <CalendarDays size={14} /> Lançar resultado
+            </Link>
+          )}
         </div>
 
         {/* Progress bar */}
-        {c.status === "em_andamento" && (
+        {c.status === "ongoing" && (
           <div className="mt-5">
             <div className="flex justify-between text-xs mb-2" style={{ color: "var(--mc-text-muted)" }}>
               <span className="flex items-center gap-1.5">
@@ -182,16 +284,24 @@ export default function CampeonatoPage() {
         </div>
 
         <div className="p-6">
-          {tab === "classificacao" && (
+          {tab === "classificacao" && showClassificacao && (
             <ClassificacaoTab
               standings={c.standings}
+              groups={c.groups}
               rounds={c.rounds}
               format={c.format}
               campeonatoId={campeonatoId}
+              onResultSaved={() => fetchAll(true)}
             />
           )}
-          {tab === "eliminatorias" && <BracketView bracket={mockCampeonatoBracket} />}
-          {tab === "estatisticas"  && <StatisticsView stats={mockCampeonatoStatistics} />}
+          {tab === "eliminatorias" && (
+            <BracketView
+              bracket={bracket ?? { rounds: [] }}
+              campeonatoId={campeonatoId}
+              onResultSaved={() => fetchAll(true)}
+            />
+          )}
+          {tab === "estatisticas"  && <StatisticsView stats={stats} attack={computeAttack(c.rounds)} />}
         </div>
       </div>
     </div>
@@ -202,48 +312,61 @@ export default function CampeonatoPage() {
 
 function ClassificacaoTab({
   standings,
+  groups,
   rounds,
   format,
   campeonatoId,
+  onResultSaved,
 }: {
   standings: StandingsRow[];
+  groups: GroupStandings[];
   rounds: RoundSummary[];
   format: string;
   campeonatoId: string;
+  onResultSaved: () => void;
 }) {
-  // Coluna direita só aparece para pontos corridos ou na fase de grupos.
-  // Para mata-mata puro, as partidas vivem na aba "Eliminatórias".
-  const hideRightColumn = format === "mata_mata";
+  const isGroups = format === "groups_knockout";
 
-  // Em grupos+mata-mata, filtrar apenas as rodadas da fase de grupos.
-  const visibleRounds =
-    format === "grupos_mata_mata"
-      ? rounds.filter((r) => !isEliminationRound(r))
-      : rounds;
+  // Em grupos+mata-mata, a coluna de rodadas mostra só a fase de grupos.
+  const visibleRounds = isGroups ? rounds.filter((r) => !isEliminationRound(r)) : rounds;
 
   return (
-    <div
-      className={hideRightColumn ? "" : "grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6"}
-    >
-      {/* Esquerda: classificação */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--mc-text)" }}>
-          <BarChart2 size={14} style={{ color: "var(--mc-primary)" }} />
-          {format === "pontos_corridos" ? "Classificação geral" : "Classificação"}
-        </h3>
-        <StandingsTable standings={standings} />
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
+      {/* Esquerda: classificação (tabela única ou uma por grupo) */}
+      <div className="space-y-4">
+        {isGroups ? (
+          groups.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>Sem grupos ainda.</p>
+          ) : (
+            groups.map((g) => (
+              <div key={g.group} className="space-y-2">
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--mc-text)" }}>
+                  <BarChart2 size={14} style={{ color: "var(--mc-primary)" }} />
+                  {g.group}
+                </h3>
+                <StandingsTable standings={g.standings} />
+              </div>
+            ))
+          )
+        ) : (
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--mc-text)" }}>
+              <BarChart2 size={14} style={{ color: "var(--mc-primary)" }} />
+              Classificação geral
+            </h3>
+            <StandingsTable standings={standings} />
+          </div>
+        )}
       </div>
 
-      {/* Direita: navegador de rodadas (apenas pontos corridos / fase de grupos) */}
-      {!hideRightColumn && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--mc-text)" }}>
-            <CalendarDays size={14} style={{ color: "var(--mc-primary)" }} />
-            Partidas por rodada
-          </h3>
-          <RoundNavigator rounds={visibleRounds} campeonatoId={campeonatoId} />
-        </div>
-      )}
+      {/* Direita: navegador de rodadas */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--mc-text)" }}>
+          <CalendarDays size={14} style={{ color: "var(--mc-primary)" }} />
+          Partidas por rodada
+        </h3>
+        <RoundNavigator rounds={visibleRounds} campeonatoId={campeonatoId} onResultSaved={onResultSaved} />
+      </div>
     </div>
   );
 }
@@ -335,9 +458,11 @@ function StandingsTable({ standings }: { standings: StandingsRow[] }) {
 function RoundNavigator({
   rounds,
   campeonatoId,
+  onResultSaved,
 }: {
   rounds: RoundSummary[];
   campeonatoId: string;
+  onResultSaved: () => void;
 }) {
   // Garantir ordem ascendente para que ← (anterior) leve a rodadas anteriores no tempo
   const sorted = useMemo(
@@ -345,11 +470,12 @@ function RoundNavigator({
     [rounds]
   );
 
-  // Índice inicial: rodada em andamento, senão a última (mais recente)
+  // Rodada atual: a primeira que ainda não terminou (em andamento ou agendada).
+  // Se todas terminaram, mostra a última.
   const initialIndex = useMemo(() => {
     if (!sorted.length) return 0;
-    const inProgress = sorted.findIndex((r) => r.status === "em_andamento");
-    return inProgress >= 0 ? inProgress : sorted.length - 1;
+    const current = sorted.findIndex((r) => r.status !== "finished");
+    return current >= 0 ? current : sorted.length - 1;
   }, [sorted]);
 
   const [index, setIndex] = useState(initialIndex);
@@ -439,6 +565,7 @@ function RoundNavigator({
             match={m}
             isFirst={i === 0}
             campeonatoId={campeonatoId}
+            onResultSaved={onResultSaved}
           />
         ))}
       </div>
@@ -473,19 +600,23 @@ function MatchRow({
   match,
   isFirst,
   campeonatoId,
+  onResultSaved,
 }: {
   match: MatchSummary;
   isFirst: boolean;
   campeonatoId: string;
+  onResultSaved: () => void;
 }) {
-  const finalizada = match.status === "finalizada";
+  const [editing, setEditing] = useState(false);
+  const finalizada = match.status === "finished";
+  const undefinedSlot = !match.homeTeam || !match.awayTeam;
   const homeWon = finalizada && (match.homeGoals ?? 0) > (match.awayGoals ?? 0);
   const awayWon = finalizada && (match.awayGoals ?? 0) > (match.homeGoals ?? 0);
+  const fullHref = `/campeonatos/${campeonatoId}/partidas/${match.id}`;
 
   return (
-    <Link
-      href={`/campeonatos/${campeonatoId}/partidas/${match.id}`}
-      className="flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-[var(--mc-bg)]"
+    <div
+      className="flex items-center gap-2 px-3 py-2.5"
       style={{ borderTop: isFirst ? "none" : "1px solid var(--mc-border)" }}
     >
       <MatchStatusIcon status={match.status} />
@@ -494,31 +625,50 @@ function MatchRow({
         className="flex-1 text-xs font-semibold text-right truncate"
         style={{ color: homeWon ? "var(--mc-text)" : "var(--mc-text-muted)" }}
       >
-        {match.homeTeam}
+        {match.homeTeam ?? <span style={{ color: "var(--mc-text-subtle)", fontStyle: "italic" }}>A definir</span>}
       </span>
 
-      <div
-        className="flex items-center gap-1 px-2 py-0.5 rounded shrink-0 min-w-[60px] justify-center"
-        style={{
-          background: finalizada ? "var(--mc-text)" : "var(--mc-bg)",
-          color: finalizada ? "#fff" : "var(--mc-text-muted)",
-        }}
-      >
-        <span className="text-xs font-extrabold tabular-nums">
-          {finalizada ? (
-            <>{match.homeGoals} <span className="opacity-50">×</span> {match.awayGoals}</>
-          ) : (
-            <>— <span className="opacity-50">×</span> —</>
-          )}
-        </span>
+      {/* Placar: clique abre edição rápida inline */}
+      <div className="shrink-0 flex justify-center">
+        {editing ? (
+          <InlineResultForm
+            matchId={match.id}
+            initialHome={match.homeGoals}
+            initialAway={match.awayGoals}
+            onSaved={() => { setEditing(false); onResultSaved(); }}
+            onCancel={() => setEditing(false)}
+            fullEditorHref={fullHref}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => !undefinedSlot && setEditing(true)}
+            disabled={undefinedSlot}
+            title={undefinedSlot ? undefined : "Clique para lançar o resultado"}
+            className="flex items-center gap-1 px-2 py-0.5 rounded min-w-[60px] justify-center transition-colors disabled:cursor-default"
+            style={{
+              background: finalizada ? "var(--mc-text)" : "var(--mc-bg)",
+              color: finalizada ? "#fff" : "var(--mc-text-muted)",
+              cursor: undefinedSlot ? "default" : "pointer",
+            }}
+          >
+            <span className="text-xs font-extrabold tabular-nums">
+              {finalizada ? (
+                <>{match.homeGoals} <span className="opacity-50">×</span> {match.awayGoals}</>
+              ) : (
+                <>— <span className="opacity-50">×</span> —</>
+              )}
+            </span>
+          </button>
+        )}
       </div>
 
       <span
         className="flex-1 text-xs font-semibold truncate"
         style={{ color: awayWon ? "var(--mc-text)" : "var(--mc-text-muted)" }}
       >
-        {match.awayTeam}
+        {match.awayTeam ?? <span style={{ color: "var(--mc-text-subtle)", fontStyle: "italic" }}>A definir</span>}
       </span>
-    </Link>
+    </div>
   );
 }

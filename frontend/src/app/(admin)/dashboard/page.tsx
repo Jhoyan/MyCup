@@ -1,20 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Globe, Trophy, CalendarDays, Activity,
   TrendingUp, Target, TrendingDown, Medal,
-  ChevronRight, Plus, Shirt,
+  ChevronRight, Plus, Shirt, Loader2, AlertCircle,
 } from "lucide-react";
-import {
-  mockDashboardSummary,
-  mockRecentResults,
-  mockRecentChampionships,
-  mockTopPlayers,
-} from "@/lib/mocks/dashboard";
+import { api } from "@/lib/api";
 import type {
+  DashboardSummary,
+  DashboardTopPlayers,
   RecentResult,
   ChampionshipSummary,
+  UniverseListItem,
   TopWinsPlayer,
   TopGoalsPlayer,
   TopLossesPlayer,
@@ -22,16 +21,17 @@ import type {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Labels mapeados dos valores reais do backend (inglês).
 const FORMAT_LABEL: Record<string, string> = {
-  pontos_corridos:   "Pontos Corridos",
-  mata_mata:         "Mata-mata",
-  grupos_mata_mata:  "Grupos + Mata-mata",
+  round_robin:     "Pontos Corridos",
+  knockout:        "Mata-mata",
+  groups_knockout: "Grupos + Mata-mata",
 };
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  em_andamento: { label: "Em andamento", cls: "mc-badge mc-badge-andamento"  },
-  agendada:     { label: "Agendado",     cls: "mc-badge mc-badge-agendada"   },
-  finalizada:   { label: "Finalizado",   cls: "mc-badge mc-badge-finalizada" },
+  ongoing:  { label: "Em andamento", cls: "mc-badge mc-badge-andamento"  },
+  draft:    { label: "Rascunho",     cls: "mc-badge mc-badge-agendada"   },
+  finished: { label: "Finalizado",   cls: "mc-badge mc-badge-finalizada" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -115,21 +115,94 @@ function TickerItem({ result }: { result: RecentResult }) {
   );
 }
 
+// ── Loading / Error states ────────────────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <Loader2 className="animate-spin mb-3" size={28} style={{ color: "var(--mc-primary)" }} />
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>Carregando dashboard...</p>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center py-20 rounded-2xl text-center"
+      style={{ border: "1px solid var(--mc-border)", background: "var(--mc-surface)" }}
+    >
+      <AlertCircle size={28} className="mb-3" style={{ color: "var(--mc-danger)" }} />
+      <p className="font-bold text-base mb-1" style={{ color: "var(--mc-text)" }}>
+        Não foi possível carregar
+      </p>
+      <p className="text-sm" style={{ color: "var(--mc-text-muted)" }}>{message}</p>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [results, setResults] = useState<RecentResult[]>([]);
+  const [topPlayers, setTopPlayers] = useState<DashboardTopPlayers | null>(null);
+  const [recentChampionships, setRecentChampionships] = useState<ChampionshipSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      try {
+        const [summaryData, resultsData, topPlayersData, universes] = await Promise.all([
+          api.get<DashboardSummary>("/api/dashboard/summary"),
+          api.get<RecentResult[]>("/api/dashboard/recent-results"),
+          api.get<DashboardTopPlayers>("/api/dashboard/top-players"),
+          api.get<UniverseListItem[]>("/api/universes"),
+        ]);
+
+        // Não há endpoint global de campeonatos: agrega por universo e ordena por
+        // id desc (proxy de "recente", já que o summary não traz data).
+        const championshipLists = await Promise.all(
+          universes.map((u) => api.get<ChampionshipSummary[]>(`/api/championships?universeId=${u.id}`)),
+        );
+        const champions = championshipLists.flat().sort((a, b) => b.id - a.id).slice(0, 6);
+
+        if (!active) return;
+        setSummary(summaryData);
+        setResults(resultsData);
+        setTopPlayers(topPlayersData);
+        setRecentChampionships(champions);
+      } catch (e) {
+        if (active) setError((e as Error).message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (error) return <ErrorState message={error} />;
+  if (loading || !summary || !topPlayers) return <LoadingState />;
+
   const stats = [
-    { label: "Universos",         value: mockDashboardSummary.totalUniverses,       icon: Globe,        color: "#005baa" },
-    { label: "Camp. pendentes",   value: mockDashboardSummary.pendingChampionships, icon: Trophy,       color: "#00b341" },
-    { label: "Jogadores ativos",  value: mockDashboardSummary.activePlayers,        icon: Shirt,        color: "#8b5cf6" },
-    { label: "Partidas pendentes", value: mockDashboardSummary.pendingMatches,       icon: CalendarDays, color: "#f4b213" },
+    { label: "Universos",         value: summary.totalUniverses,       icon: Globe,        color: "#005baa" },
+    { label: "Camp. pendentes",   value: summary.pendingChampionships, icon: Trophy,       color: "#00b341" },
+    { label: "Jogadores ativos",  value: summary.activePlayers,        icon: Shirt,        color: "#8b5cf6" },
+    { label: "Partidas pendentes", value: summary.pendingMatches,      icon: CalendarDays, color: "#f4b213" },
   ];
 
   return (
     <div className="space-y-8 max-w-[1280px]">
 
       {/* Ticker no topo */}
-      <ResultTicker results={mockRecentResults} />
+      {results.length > 0 && <ResultTicker results={results} />}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -198,14 +271,23 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {mockRecentChampionships.map((c) => (
-              <ChampionshipCard key={c.id} championship={c} />
-            ))}
+            {recentChampionships.length === 0 ? (
+              <div
+                className="rounded-2xl p-8 text-center text-sm"
+                style={{ border: "1px dashed var(--mc-border)", background: "var(--mc-surface)", color: "var(--mc-text-muted)" }}
+              >
+                Nenhum campeonato ainda.
+              </div>
+            ) : (
+              recentChampionships.map((c) => (
+                <ChampionshipCard key={c.id} championship={c} />
+              ))
+            )}
           </div>
         </div>
 
         {/* Top Jogadores (30 dias) */}
-        <TopPlayersCard data={mockTopPlayers} />
+        <TopPlayersCard data={topPlayers} />
       </div>
     </div>
   );
@@ -253,7 +335,7 @@ function ChampionshipCard({ championship: c }: { championship: ChampionshipSumma
         )}
       </div>
 
-      {c.status === "em_andamento" && c.totalRounds > 0 && (
+      {c.status === "ongoing" && c.totalRounds > 0 && (
         <div className="w-full h-1.5 rounded-full" style={{ background: "var(--mc-border)" }}>
           <div
             className="h-1.5 rounded-full transition-all"
