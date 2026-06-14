@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Users, Trophy, Plus, ChevronLeft, ChevronRight,
-  User, Shirt, TrendingUp, MoreVertical, Pencil, Trash2,
+  Shirt, TrendingUp, MoreVertical, Pencil, Trash2,
   Globe, Loader2, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -125,7 +125,7 @@ export default function UniversoPage() {
               onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-bg)")}
               onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-surface)")}
             >
-              <User size={14} /> Jogador
+              <Plus size={14} /> Jogador
             </Link>
             <Link
               href="/campeonatos/novo"
