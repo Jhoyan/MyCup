@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MyCup — Frontend
 
-## Getting Started
+Painel administrativo do MyCup. **Next.js 16 + React 19 + Tailwind v4 + shadcn**.
 
-First, run the development server:
+> Antes de usar APIs novas do Next, ler os docs em `node_modules/next/dist/docs/` (ver [AGENTS.md](AGENTS.md)).
+
+## Rodar em desenvolvimento
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A aplicação espera o **backend rodando em `http://localhost:5130`** (perfil `http`). Suba o backend antes:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd ../backend
+dotnet run --launch-profile http
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Portas e CORS
 
-## Learn More
+| App | URL |
+|-----|-----|
+| Frontend (Next dev) | `http://localhost:3000` |
+| Backend (API) | `http://localhost:5130` |
 
-To learn more about Next.js, take a look at the following resources:
+O backend libera CORS para `http://localhost:3000`, então **rodar o front na porta padrão `3000` já funciona** — sem cert HTTPS nem ajuste de redirect. Não use o perfil `https` (`7213`) em dev.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Variável de ambiente
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+A URL da API tem default `http://localhost:5130`. Para apontar para outro host, crie `.env.local`:
 
-## Deploy on Vercel
+```
+NEXT_PUBLIC_API_URL=http://localhost:5130
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Autenticação
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Login/registro guardam `token` + `refreshToken` no `localStorage`. O access token (JWT) dura ~5 min; o [api.ts](src/lib/api.ts) renova sozinho num `401` via `/api/auth/refresh` (rotação) e repete a requisição — a sessão segue até o refresh token expirar (7 dias).
+
+## Estrutura
+
+```
+src/
+├── app/
+│   ├── (auth)/        # login, registrar
+│   └── (admin)/       # dashboard, universos, campeonatos (protegido por guard)
+├── components/        # UI (shadcn) + componentes de domínio (campeonato/, admin/)
+└── lib/               # api.ts, auth.ts, types.ts (espelha os DTOs do backend)
+```
