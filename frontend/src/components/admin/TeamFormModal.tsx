@@ -1,14 +1,14 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { toast } from "sonner";
+import { Shirt } from "lucide-react";
 import { api } from "@/lib/api";
-import { ChevronLeft, User } from "lucide-react";
-import type { CreatePlayerRequest } from "@/lib/types";
+import type { CreateTeamRequest, UpdateTeamRequest } from "@/lib/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const schema = z.object({
   name: z.string().min(1, "Nome obrigatório").max(120, "Máximo 120 caracteres"),
@@ -16,73 +16,78 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export default function NovoJogadorPage() {
-  const { universoid } = useParams<{ universoid: string }>();
-  const router = useRouter();
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
+export default function TeamFormModal({
+  open,
+  onOpenChange,
+  universeId,
+  team,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  universeId: number;
+  /** Presença indica modo edição. */
+  team?: { id: number; name: string };
+  onSaved: () => void;
+}) {
+  const isEdit = !!team;
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  useEffect(() => {
+    if (open) reset({ name: team?.name ?? "" });
+  }, [open, team, reset]);
 
   async function onSubmit(data: FormData) {
-    const body: CreatePlayerRequest = { name: data.name, universeId: Number(universoid) };
     try {
-      await api.post("/api/players", body);
-      toast.success("Jogador adicionado");
-      router.push(`/universos/${universoid}`);
+      if (isEdit) {
+        const body: UpdateTeamRequest = { name: data.name };
+        await api.put(`/api/teams/${team!.id}`, body);
+        toast.success("Time atualizado");
+      } else {
+        const body: CreateTeamRequest = { name: data.name, universeId };
+        await api.post("/api/teams", body);
+        toast.success("Time criado");
+      }
+      onOpenChange(false);
+      onSaved();
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
   return (
-    <div className="max-w-lg space-y-6">
-
-      {/* Back */}
-      <Link
-        href={`/universos/${universoid}`}
-        className="inline-flex items-center gap-1 text-sm font-medium transition-colors"
-        style={{ color: "var(--mc-text-muted)" }}
-        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--mc-primary)")}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--mc-text-muted)")}
-      >
-        <ChevronLeft size={15} /> Voltar ao universo
-      </Link>
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-extrabold" style={{ color: "var(--mc-text)" }}>
-          Novo Jogador
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--mc-text-muted)" }}>
-          Adicione um jogador a este universo
-        </p>
-      </div>
-
-      {/* Form card */}
-      <div
-        className="rounded-2xl p-6 space-y-5"
-        style={{ background: "var(--mc-surface)", border: "1px solid var(--mc-border)" }}
-      >
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(0,91,170,0.08)" }}
-        >
-          <User size={22} style={{ color: "var(--mc-primary)" }} />
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg p-6">
+        <DialogHeader>
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center"
+            style={{ background: "rgba(0,91,170,0.08)" }}
+          >
+            <Shirt size={22} style={{ color: "var(--mc-primary)" }} />
+          </div>
+          <DialogTitle className="text-xl font-extrabold" style={{ color: "var(--mc-text)" }}>
+            {isEdit ? "Editar Time" : "Novo Time"}
+          </DialogTitle>
+          <DialogDescription style={{ color: "var(--mc-text-muted)" }}>
+            {isEdit ? "Atualize os dados deste time" : "Adicione um time a este universo"}
+          </DialogDescription>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div className="space-y-1.5">
-            <label
-              htmlFor="name"
-              className="block text-sm font-semibold"
-              style={{ color: "var(--mc-text)" }}
-            >
-              Nome do jogador
+            <label htmlFor="team-name" className="block text-sm font-semibold" style={{ color: "var(--mc-text)" }}>
+              Nome do time
             </label>
             <input
-              id="name"
+              id="team-name"
               {...register("name")}
-              placeholder="Nome completo"
+              placeholder="Ex: Real Madruga"
+              autoFocus
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
               style={{
                 background: "var(--mc-bg)",
@@ -101,9 +106,7 @@ export default function NovoJogadorPage() {
               }}
             />
             {errors.name && (
-              <p className="text-xs" style={{ color: "var(--mc-danger)" }}>
-                {errors.name.message}
-              </p>
+              <p className="text-xs" style={{ color: "var(--mc-danger)" }}>{errors.name.message}</p>
             )}
           </div>
 
@@ -116,11 +119,11 @@ export default function NovoJogadorPage() {
               onMouseEnter={(e) => { if (!isSubmitting) (e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)"; }}
               onMouseLeave={(e) => { if (!isSubmitting) (e.currentTarget as HTMLElement).style.background = "var(--mc-primary)"; }}
             >
-              {isSubmitting ? "Salvando..." : "Adicionar jogador"}
+              {isSubmitting ? "Salvando..." : isEdit ? "Salvar alterações" : "Adicionar time"}
             </button>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => onOpenChange(false)}
               className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
               style={{ border: "1px solid var(--mc-border)", color: "var(--mc-text)", background: "transparent" }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-bg)")}
@@ -130,7 +133,7 @@ export default function NovoJogadorPage() {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

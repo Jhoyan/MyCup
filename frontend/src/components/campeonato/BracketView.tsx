@@ -142,7 +142,6 @@ function BracketMatchCard({
             initialAway={match.awayTeam?.goals ?? null}
             onSaved={() => { setEditing(false); onResultSaved(); }}
             onCancel={() => setEditing(false)}
-            fullEditorHref={`/campeonatos/${campeonatoId}/partidas/${match.id}`}
           />
         </div>
       )}

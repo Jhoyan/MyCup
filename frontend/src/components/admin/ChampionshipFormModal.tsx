@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import {
-  ChevronLeft, ChevronRight, Trophy, LayoutList,
+  ChevronRight, Trophy, LayoutList,
   Swords, Layers, Check, Users, Shuffle, Hand,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +15,7 @@ import type {
   CreateChampionshipRequest, ChampionshipFormat, ChampionshipDistribution, UniverseListItem,
 } from "@/lib/types";
 import { FORMAT_IDS } from "@/lib/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const step1Schema = z.object({
@@ -82,148 +82,19 @@ const distribuicoes = [
   },
 ];
 
-// ── Step indicator ─────────────────────────────────────────────────────────────
 const STEPS = ["Informações", "Formato", "Distribuição", "Confirmar"];
 
-function StepIndicator({ current }: { current: number }) {
-  return (
-    <div className="flex items-center gap-0">
-      {STEPS.map((label, i) => {
-        const done    = i < current;
-        const active  = i === current;
-        const isLast  = i === STEPS.length - 1;
-
-        return (
-          <div key={label} className="flex items-center">
-            <div className="flex flex-col items-center gap-1.5">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all"
-                style={{
-                  background: done || active ? "var(--mc-primary)" : "var(--mc-border)",
-                  color:      done || active ? "white" : "var(--mc-text-muted)",
-                }}
-              >
-                {done ? <Check size={14} /> : i + 1}
-              </div>
-              <span
-                className="text-[0.7rem] font-semibold whitespace-nowrap hidden sm:block"
-                style={{ color: active ? "var(--mc-primary)" : done ? "var(--mc-text-muted)" : "var(--mc-text-subtle)" }}
-              >
-                {label}
-              </span>
-            </div>
-            {!isLast && (
-              <div
-                className="w-16 sm:w-24 h-[2px] mb-3 mx-1 transition-all"
-                style={{ background: done ? "var(--mc-primary)" : "var(--mc-border)" }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Field ─────────────────────────────────────────────────────────────────────
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="block text-sm font-semibold" style={{ color: "var(--mc-text)" }}>
-        {label}
-      </label>
-      {children}
-      {error && <p className="text-xs" style={{ color: "var(--mc-danger)" }}>{error}</p>}
-    </div>
-  );
-}
-
-function TextInput({ error, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { error?: boolean }) {
-  return (
-    <input
-      {...props}
-      className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
-      style={{
-        background: "var(--mc-bg)",
-        border: `1px solid ${error ? "var(--mc-danger)" : "var(--mc-border)"}`,
-        color: "var(--mc-text)",
-      }}
-      onFocus={(e) => {
-        if (!error) {
-          e.currentTarget.style.borderColor = "var(--mc-primary)";
-          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,91,170,0.1)";
-        }
-        props.onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.borderColor = error ? "var(--mc-danger)" : "var(--mc-border)";
-        e.currentTarget.style.boxShadow = "none";
-        props.onBlur?.(e);
-      }}
-    />
-  );
-}
-
-// ── Option card ───────────────────────────────────────────────────────────────
-function OptionCard({
-  selected, onClick, icon: Icon, label, desc, detail,
+// ── Modal ───────────────────────────────────────────────────────────────────────
+export default function ChampionshipFormModal({
+  open,
+  onOpenChange,
 }: {
-  selected: boolean;
-  onClick: () => void;
-  icon: React.ElementType;
-  label: string;
-  desc: string;
-  detail?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left p-4 rounded-xl transition-all"
-      style={{
-        border: `2px solid ${selected ? "var(--mc-primary)" : "var(--mc-border)"}`,
-        background: selected ? "rgba(0,91,170,0.04)" : "var(--mc-surface)",
-      }}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-          style={{
-            background: selected ? "rgba(0,91,170,0.12)" : "var(--mc-bg)",
-          }}
-        >
-          <Icon size={18} style={{ color: selected ? "var(--mc-primary)" : "var(--mc-text-muted)" }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-bold" style={{ color: "var(--mc-text)" }}>{label}</span>
-            {selected && (
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: "var(--mc-primary)" }}
-              >
-                <Check size={11} color="white" />
-              </span>
-            )}
-          </div>
-          <p className="text-xs mt-0.5" style={{ color: "var(--mc-text-muted)" }}>{desc}</p>
-          {detail && (
-            <p className="text-[0.7rem] mt-1.5 font-medium" style={{ color: "var(--mc-text-subtle)" }}>
-              {detail}
-            </p>
-          )}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
-export default function NovoCampeonatoPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
 
-  // Form state per step
   const [step1Data, setStep1Data] = useState<Partial<Step1>>({});
   const [step2Data, setStep2Data] = useState<Partial<Step2>>({});
   const [step3Data, setStep3Data] = useState<Partial<Step3>>({});
@@ -231,45 +102,30 @@ export default function NovoCampeonatoPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [universos, setUniversos] = useState<UniverseListItem[]>([]);
 
+  const form1 = useForm<Step1>({ resolver: zodResolver(step1Schema), defaultValues: { nome: "", universoid: "" } });
+  const form2 = useForm<Step2>({ resolver: zodResolver(step2Schema), defaultValues: { formato: undefined } });
+  const form3 = useForm<Step3>({ resolver: zodResolver(step3Schema), defaultValues: { distribuicao: undefined } });
+
+  // Carrega universos e reinicia o wizard a cada abertura.
   useEffect(() => {
+    if (!open) return;
+    setStep(0);
+    setStep1Data({});
+    setStep2Data({});
+    setStep3Data({});
+    setSubmitError(null);
+    form1.reset({ nome: "", universoid: "" });
+    form2.reset({ formato: undefined });
+    form3.reset({ distribuicao: undefined });
     api
       .get<UniverseListItem[]>("/api/universes")
       .then(setUniversos)
       .catch((e) => toast.error((e as Error).message));
-  }, []);
+  }, [open, form1, form2, form3]);
 
-  // Step 1 form
-  const form1 = useForm<Step1>({
-    resolver: zodResolver(step1Schema),
-    defaultValues: { nome: "", universoid: "" },
-  });
-
-  // Step 2 form
-  const form2 = useForm<Step2>({
-    resolver: zodResolver(step2Schema),
-    defaultValues: { formato: undefined },
-  });
-
-  // Step 3 form
-  const form3 = useForm<Step3>({
-    resolver: zodResolver(step3Schema),
-    defaultValues: { distribuicao: undefined },
-  });
-
-  function nextStep1(data: Step1) {
-    setStep1Data(data);
-    setStep(1);
-  }
-
-  function nextStep2(data: Step2) {
-    setStep2Data(data);
-    setStep(2);
-  }
-
-  function nextStep3(data: Step3) {
-    setStep3Data(data);
-    setStep(3);
-  }
+  function nextStep1(data: Step1) { setStep1Data(data); setStep(1); }
+  function nextStep2(data: Step2) { setStep2Data(data); setStep(2); }
+  function nextStep3(data: Step3) { setStep3Data(data); setStep(3); }
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -285,6 +141,7 @@ export default function NovoCampeonatoPage() {
       };
       const created = await api.post<{ id: number; message: string }>("/api/championships", body);
       // Recém-criado vem como draft (sem times/chaveamento): leva direto à configuração.
+      onOpenChange(false);
       router.push(`/campeonatos/${created.id}/configurar`);
     } catch (e) {
       setSubmitError((e as Error).message);
@@ -297,37 +154,21 @@ export default function NovoCampeonatoPage() {
   const distSelecionada     = distribuicoes.find((d) => d.value === step3Data.distribuicao);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl p-7 max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-extrabold" style={{ color: "var(--mc-text)" }}>
+            Novo Campeonato
+          </DialogTitle>
+          <DialogDescription style={{ color: "var(--mc-text-muted)" }}>
+            Configure o seu torneio passo a passo
+          </DialogDescription>
+        </DialogHeader>
 
-      {/* Back */}
-      <Link
-        href="/campeonatos"
-        className="inline-flex items-center gap-1 text-sm font-medium transition-colors"
-        style={{ color: "var(--mc-text-muted)" }}
-        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--mc-primary)")}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--mc-text-muted)")}
-      >
-        <ChevronLeft size={15} /> Campeonatos
-      </Link>
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-extrabold" style={{ color: "var(--mc-text)" }}>
-          Novo Campeonato
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--mc-text-muted)" }}>
-          Configure o seu torneio passo a passo
-        </p>
-      </div>
-
-      {/* Step indicator */}
-      <StepIndicator current={step} />
-
-      {/* Card */}
-      <div
-        className="rounded-2xl p-7"
-        style={{ background: "var(--mc-surface)", border: "1px solid var(--mc-border)" }}
-      >
+        {/* Step indicator */}
+        <div className="flex justify-center py-2">
+          <StepIndicator current={step} />
+        </div>
 
         {/* ── Step 0: Informações ── */}
         {step === 0 && (
@@ -366,7 +207,7 @@ export default function NovoCampeonatoPage() {
               </select>
             </Field>
 
-            <StepActions onBack={() => router.back()} />
+            <StepActions onBack={() => onOpenChange(false)} backLabel="Cancelar" />
           </form>
         )}
 
@@ -487,14 +328,143 @@ export default function NovoCampeonatoPage() {
             </div>
           </div>
         )}
-      </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Sub-componentes ─────────────────────────────────────────────────────────────
+
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="flex items-center gap-0">
+      {STEPS.map((label, i) => {
+        const done   = i < current;
+        const active = i === current;
+        const isLast = i === STEPS.length - 1;
+
+        return (
+          <div key={label} className="flex items-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all"
+                style={{
+                  background: done || active ? "var(--mc-primary)" : "var(--mc-border)",
+                  color:      done || active ? "white" : "var(--mc-text-muted)",
+                }}
+              >
+                {done ? <Check size={14} /> : i + 1}
+              </div>
+              <span
+                className="text-[0.7rem] font-semibold whitespace-nowrap hidden sm:block"
+                style={{ color: active ? "var(--mc-primary)" : done ? "var(--mc-text-muted)" : "var(--mc-text-subtle)" }}
+              >
+                {label}
+              </span>
+            </div>
+            {!isLast && (
+              <div
+                className="w-12 sm:w-20 h-[2px] mb-3 mx-1 transition-all"
+                style={{ background: done ? "var(--mc-primary)" : "var(--mc-border)" }}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── Shared sub-components ─────────────────────────────────────────────────────
+function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-semibold" style={{ color: "var(--mc-text)" }}>
+        {label}
+      </label>
+      {children}
+      {error && <p className="text-xs" style={{ color: "var(--mc-danger)" }}>{error}</p>}
+    </div>
+  );
+}
 
-function StepActions({ onBack }: { onBack: () => void }) {
+function TextInput({ error, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { error?: boolean }) {
+  return (
+    <input
+      {...props}
+      className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
+      style={{
+        background: "var(--mc-bg)",
+        border: `1px solid ${error ? "var(--mc-danger)" : "var(--mc-border)"}`,
+        color: "var(--mc-text)",
+      }}
+      onFocus={(e) => {
+        if (!error) {
+          e.currentTarget.style.borderColor = "var(--mc-primary)";
+          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,91,170,0.1)";
+        }
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = error ? "var(--mc-danger)" : "var(--mc-border)";
+        e.currentTarget.style.boxShadow = "none";
+        props.onBlur?.(e);
+      }}
+    />
+  );
+}
+
+function OptionCard({
+  selected, onClick, icon: Icon, label, desc, detail,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+  desc: string;
+  detail?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left p-4 rounded-xl transition-all cursor-pointer"
+      style={{
+        border: `2px solid ${selected ? "var(--mc-primary)" : "var(--mc-border)"}`,
+        background: selected ? "rgba(0,91,170,0.04)" : "var(--mc-surface)",
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+          style={{ background: selected ? "rgba(0,91,170,0.12)" : "var(--mc-bg)" }}
+        >
+          <Icon size={18} style={{ color: selected ? "var(--mc-primary)" : "var(--mc-text-muted)" }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold" style={{ color: "var(--mc-text)" }}>{label}</span>
+            {selected && (
+              <span
+                className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: "var(--mc-primary)" }}
+              >
+                <Check size={11} color="white" />
+              </span>
+            )}
+          </div>
+          <p className="text-xs mt-0.5" style={{ color: "var(--mc-text-muted)" }}>{desc}</p>
+          {detail && (
+            <p className="text-[0.7rem] mt-1.5 font-medium" style={{ color: "var(--mc-text-subtle)" }}>
+              {detail}
+            </p>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function StepActions({ onBack, backLabel = "Voltar" }: { onBack: () => void; backLabel?: string }) {
   return (
     <div className="flex gap-3 pt-1">
       <button
@@ -514,7 +484,7 @@ function StepActions({ onBack }: { onBack: () => void }) {
         onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-bg)")}
         onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
       >
-        Voltar
+        {backLabel}
       </button>
     </div>
   );

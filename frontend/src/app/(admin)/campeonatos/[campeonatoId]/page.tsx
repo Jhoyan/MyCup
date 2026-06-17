@@ -167,7 +167,7 @@ export default function CampeonatoPage() {
   ];
 
   return (
-    <div className="space-y-6 max-w-[1280px]">
+    <div className="space-y-6">
 
       {/* Back */}
       <Link
@@ -612,7 +612,6 @@ function MatchRow({
   const undefinedSlot = !match.homeTeam || !match.awayTeam;
   const homeWon = finalizada && (match.homeGoals ?? 0) > (match.awayGoals ?? 0);
   const awayWon = finalizada && (match.awayGoals ?? 0) > (match.homeGoals ?? 0);
-  const fullHref = `/campeonatos/${campeonatoId}/partidas/${match.id}`;
 
   return (
     <div
@@ -637,7 +636,6 @@ function MatchRow({
             initialAway={match.awayGoals}
             onSaved={() => { setEditing(false); onResultSaved(); }}
             onCancel={() => setEditing(false)}
-            fullEditorHref={fullHref}
           />
         ) : (
           <button

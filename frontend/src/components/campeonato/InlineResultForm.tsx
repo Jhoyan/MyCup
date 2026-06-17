@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Check, X, Loader2, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 import type { UpdateMatchResultRequest } from "@/lib/types";
+import MatchResultModal from "@/components/campeonato/MatchResultModal";
 
 // Formulário compacto de resultado, usado inline (lista de partidas e bracket).
 // Salva sempre como "finished", só placar — sem pênaltis (use o editor completo para
@@ -15,19 +15,18 @@ export default function InlineResultForm({
   initialAway,
   onSaved,
   onCancel,
-  fullEditorHref,
 }: {
   matchId: number;
   initialHome: number | null;
   initialAway: number | null;
   onSaved: () => void;
   onCancel: () => void;
-  fullEditorHref: string;
 }) {
   const [home, setHome] = useState(initialHome ?? 0);
   const [away, setAway] = useState(initialAway ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
+  const [fullEditorOpen, setFullEditorOpen] = useState(false);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -72,18 +71,25 @@ export default function InlineResultForm({
       >
         <X size={14} />
       </button>
-      <Link
-        href={fullEditorHref}
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setFullEditorOpen(true); }}
         className="p-1 transition-colors"
         style={{ color: "var(--mc-text-muted)" }}
         title="Editor completo"
         aria-label="Editor completo"
       >
         <ExternalLink size={13} />
-      </Link>
+      </button>
 
       {error && <span className="text-[0.6rem] w-full text-center" style={{ color: "var(--mc-danger)" }}>Erro ao salvar</span>}
+
+      <MatchResultModal
+        open={fullEditorOpen}
+        onOpenChange={setFullEditorOpen}
+        matchId={matchId}
+        onSaved={() => { setFullEditorOpen(false); onSaved(); }}
+      />
     </form>
   );
 }
