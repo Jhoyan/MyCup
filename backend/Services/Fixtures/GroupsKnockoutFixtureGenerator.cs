@@ -10,8 +10,10 @@ namespace MyCup.Services.Fixtures;
 /// <see cref="Match.AwaySourceGroup"/>. The whole structure is created up front; the fixtures coordinator
 /// fills the knockout slots once each group finishes (see <see cref="FixturesService"/>).
 ///
-/// MVP scope: equal-sized groups whose count is a power of two, two qualifiers per group, and the
-/// <c>cross_adjacent</c> seeding (1A×2B, 1B×2A, 1C×2D, …). See docs/be-008-fixtures.md.
+/// MVP scope: equal-sized groups whose count is a power of two (1, 2, 4, 8, …), two qualifiers per group,
+/// and the <c>cross_adjacent</c> seeding (1A×2B, 1B×2A, 1C×2D, …). A single group degenerates to a league
+/// whose top two contest a final (1st vs 2nd) — i.e. round robin + knockout without a dedicated format.
+/// See docs/be-008-fixtures.md.
 /// </summary>
 public class GroupsKnockoutFixtureGenerator : IFixtureGenerator
 {
@@ -23,8 +25,8 @@ public class GroupsKnockoutFixtureGenerator : IFixtureGenerator
 
         if (config.GroupsCount is not int groupsCount)
             throw new BadRequestException("Informe a quantidade de grupos (groups_count)");
-        if (groupsCount < 2)
-            throw new BadRequestException("São necessários pelo menos 2 grupos");
+        if (groupsCount < 1)
+            throw new BadRequestException("É necessário pelo menos 1 grupo");
         if ((groupsCount & (groupsCount - 1)) != 0)
             throw new BadRequestException("A quantidade de grupos deve ser uma potência de 2 (2, 4, 8, ...)");
 
@@ -90,13 +92,21 @@ public class GroupsKnockoutFixtureGenerator : IFixtureGenerator
         int firstRoundNumber = matchdayCount + 1;
         var firstRound = new Round { Number = firstRoundNumber, Name = KnockoutEngine.NameForTeams(groupsCount * qualifiers) };
 
-        // Pair adjacent groups: winner of one faces the runner-up of the other and vice versa.
-        for (int g = 0; g < groupsCount; g += 2)
+        if (groupsCount == 1)
         {
-            var first = groups[g];
-            var second = groups[g + 1];
-            firstRound.Matches.Add(GroupSeedMatch(first, 1, second, 2));
-            firstRound.Matches.Add(GroupSeedMatch(second, 1, first, 2));
+            // Single group: it is a league whose top two play a final (1st vs 2nd of the same group).
+            firstRound.Matches.Add(GroupSeedMatch(groups[0], 1, groups[0], 2));
+        }
+        else
+        {
+            // Pair adjacent groups: winner of one faces the runner-up of the other and vice versa.
+            for (int g = 0; g < groupsCount; g += 2)
+            {
+                var first = groups[g];
+                var second = groups[g + 1];
+                firstRound.Matches.Add(GroupSeedMatch(first, 1, second, 2));
+                firstRound.Matches.Add(GroupSeedMatch(second, 1, first, 2));
+            }
         }
         knockoutPhase.Rounds.Add(firstRound);
 

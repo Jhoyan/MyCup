@@ -191,7 +191,7 @@ Método do círculo (Berger): turno único ou ida-e-volta (`double_round`); núm
 - **Dupla eliminação:** chave de **vencedores** (`upper`) + chave de **perdedores** (`lower`, com o interleave canônico *minor/major*) + **grande final** (`grand_final`, MVP de final única, sem *reset*). Total de `2N−2` partidas. Hoje exige número de times **potência de 2** (bye em dupla eliminação é backlog).
 
 #### `groups_knockout` (grupos + mata-mata)
-Duas fases: **grupos** (sorteio aleatório, pontos corridos por grupo, cada partida com `GroupId`) + **mata-mata** cuja primeira rodada é **semeada pela classificação dos grupos**, não por resultados de partida. Semeadura `cross_adjacent` (`1ºA×2ºB`, `1ºB×2ºA`, …). *MVP:* grupos em potência de 2, 2 classificados por grupo, semeadura `cross_adjacent`.
+Duas fases: **grupos** (sorteio aleatório, pontos corridos por grupo, cada partida com `GroupId`) + **mata-mata** cuja primeira rodada é **semeada pela classificação dos grupos**, não por resultados de partida. Semeadura `cross_adjacent` (`1ºA×2ºB`, `1ºB×2ºA`, …). *MVP:* grupos em potência de 2 (1, 2, 4, 8, …), 2 classificados por grupo, semeadura `cross_adjacent`. Com **1 grupo** o formato vira pontos corridos + final (`1º×2º`) — equivale a liga + mata-mata sem precisar de um modo novo.
 
 ### 7.5 Critérios de desempate (classificação)
 
