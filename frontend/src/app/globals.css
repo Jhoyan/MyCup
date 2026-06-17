@@ -30,6 +30,8 @@
   --color-primary: var(--primary);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 12px;
@@ -100,6 +102,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Escala global ~25%: utilitários baseados em rem (texto, padding, gap,
+     larguras) crescem juntos, refluindo sem overflow horizontal. */
+  html {
+    font-size: 125%;
   }
   body {
     @apply bg-background text-foreground;
