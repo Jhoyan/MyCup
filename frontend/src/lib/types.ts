@@ -156,6 +156,16 @@ export type TeamSummary = {
   name: string;
 };
 
+// Espelha CreateTeamDto (POST /api/teams). O universo vem pelo corpo.
+export type CreateTeamRequest = {
+  name: string;
+  universeId: number;
+};
+
+export type UpdateTeamRequest = {
+  name: string;
+};
+
 // Espelha ChampionshipPlayerDto — jogador inscrito + time atribuído (null se sem time).
 export type ChampionshipPlayer = {
   playerId: number;
