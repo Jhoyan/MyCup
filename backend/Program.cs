@@ -47,6 +47,7 @@ builder.Services.AddScoped<ITokenManager, TokenManager>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UniversesService>();
 builder.Services.AddScoped<PlayersService>();
+builder.Services.AddScoped<PlayerLinkRequestsService>();
 builder.Services.AddScoped<TeamsService>();
 builder.Services.AddScoped<ChampionshipsService>();
 builder.Services.AddScoped<MatchesService>();

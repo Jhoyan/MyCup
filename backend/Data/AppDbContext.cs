@@ -88,6 +88,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// </summary>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    /// <summary>
+    /// Requests asking a user to take ownership of (link their account to) a player.
+    /// </summary>
+    public DbSet<PlayerLinkRequest> PlayerLinkRequests => Set<PlayerLinkRequest>();
+
 /// <summary>
     /// Configures entity mappings, table names, keys, indexes, and relationships.
     /// </summary>
@@ -118,6 +123,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Round>().ToTable("rounds");
         modelBuilder.Entity<Team>().ToTable("teams");
         modelBuilder.Entity<Match>().ToTable("matches");
+        modelBuilder.Entity<PlayerLinkRequest>().ToTable("player_link_requests");
 
         modelBuilder.Entity<UserUniverse>()
             .HasKey(x => new { x.UserId, x.UniverseId });
@@ -152,6 +158,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasOne(x => x.Universe)
             .WithMany(x => x.Players)
             .HasForeignKey(x => x.UniverseId);
+
+        // A user controls at most one player per universe. Partial index so unlinked players (UserId NULL)
+        // are never constrained against each other.
+        modelBuilder.Entity<Player>()
+            .HasIndex(x => new { x.UniverseId, x.UserId })
+            .IsUnique()
+            .HasFilter("\"UserId\" IS NOT NULL");
+
+        modelBuilder.Entity<PlayerLinkRequest>()
+            .HasOne(x => x.Player)
+            .WithMany()
+            .HasForeignKey(x => x.PlayerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PlayerLinkRequest>()
+            .HasOne(x => x.TargetUser)
+            .WithMany()
+            .HasForeignKey(x => x.TargetUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PlayerLinkRequest>()
+            .HasOne(x => x.RequestedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.RequestedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Team>()
             .HasOne(x => x.Universe)
