@@ -1,26 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Globe, Trophy, Users, ChevronRight, Plus, Loader2, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import type { UniverseListItem } from "@/lib/types";
+import UniverseFormModal from "@/components/admin/UniverseFormModal";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function UniversosPage() {
   const [universos, setUniversos] = useState<UniverseListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api
       .get<UniverseListItem[]>("/api/universes")
       .then(setUniversos)
       .catch((e) => setError((e as Error).message));
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
   return (
-    <div className="space-y-8 max-w-[1280px]">
+    <div className="space-y-8">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -32,16 +36,17 @@ export default function UniversosPage() {
             Gerencie suas ligas e grupos
           </p>
         </div>
-        <Link
-          href="/universos/novo"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors cursor-pointer"
           style={{ background: "var(--mc-primary)" }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
           onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
         >
           <Plus size={15} />
           Novo universo
-        </Link>
+        </button>
       </div>
 
       {/* Grid / estados */}
@@ -50,7 +55,7 @@ export default function UniversosPage() {
       ) : universos === null ? (
         <LoadingState />
       ) : universos.length === 0 ? (
-        <EmptyState />
+        <EmptyState onNew={() => setModalOpen(true)} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {universos.map((u) => (
@@ -58,6 +63,8 @@ export default function UniversosPage() {
           ))}
         </div>
       )}
+
+      <UniverseFormModal open={modalOpen} onOpenChange={setModalOpen} onSaved={load} />
     </div>
   );
 }
@@ -150,7 +157,7 @@ function UniversoCard({ universo }: { universo: UniverseListItem }) {
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div
       className="flex flex-col items-center justify-center py-20 rounded-2xl"
@@ -168,14 +175,15 @@ function EmptyState() {
       <p className="text-sm mb-6" style={{ color: "var(--mc-text-muted)" }}>
         Crie um universo para começar a organizar seus campeonatos
       </p>
-      <Link
-        href="/universos/novo"
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
+      <button
+        type="button"
+        onClick={onNew}
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white cursor-pointer"
         style={{ background: "var(--mc-primary)" }}
       >
         <Plus size={15} />
         Criar primeiro universo
-      </Link>
+      </button>
     </div>
   );
 }

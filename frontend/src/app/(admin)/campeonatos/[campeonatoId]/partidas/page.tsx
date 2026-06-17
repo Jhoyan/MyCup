@@ -10,6 +10,7 @@ import {
 import { api } from "@/lib/api";
 import type { ChampionshipDetail, RoundSummary, MatchSummary } from "@/lib/types";
 import InlineResultForm from "@/components/campeonato/InlineResultForm";
+import MatchResultModal from "@/components/campeonato/MatchResultModal";
 
 function MatchStatusIcon({ status }: { status: string }) {
   if (status === "finished") return <CheckCircle2 size={13} style={{ color: "var(--mc-accent)" }} />;
@@ -43,7 +44,7 @@ export default function PartidasPage() {
   const rounds = [...c.rounds].sort((a, b) => a.number - b.number);
 
   return (
-    <div className="space-y-6 max-w-[900px]">
+    <div className="space-y-6">
 
       {/* Back */}
       <Link
@@ -119,9 +120,9 @@ function MatchRow({
   onSaved: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const finished = match.status === "finished";
   const undefinedSlot = !match.homeTeam || !match.awayTeam;
-  const fullHref = `/campeonatos/${campeonatoId}/partidas/${match.id}`;
 
   return (
     <div
@@ -143,7 +144,6 @@ function MatchRow({
             initialAway={match.awayGoals}
             onSaved={() => { setEditing(false); onSaved(); }}
             onCancel={() => setEditing(false)}
-            fullEditorHref={fullHref}
           />
         ) : (
           <button
@@ -174,15 +174,23 @@ function MatchRow({
       </span>
 
       {/* Atalho para o editor completo */}
-      <Link
-        href={fullHref}
-        className="p-1 rounded-md transition-colors hover:bg-[var(--mc-bg)] shrink-0"
+      <button
+        type="button"
+        onClick={() => setFullEditorOpen(true)}
+        className="p-1 rounded-md transition-colors hover:bg-[var(--mc-bg)] shrink-0 cursor-pointer"
         style={{ color: "var(--mc-text-muted)" }}
         title="Abrir editor completo"
         aria-label="Editor completo"
       >
         <ChevronRight size={16} />
-      </Link>
+      </button>
+
+      <MatchResultModal
+        open={fullEditorOpen}
+        onOpenChange={setFullEditorOpen}
+        matchId={match.id}
+        onSaved={() => { setFullEditorOpen(false); onSaved(); }}
+      />
     </div>
   );
 }

@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ChevronLeft, Shirt, Users, Shuffle, Plus, Trash2, Zap,
-  Loader2, AlertCircle, Settings2,
+  Loader2, AlertCircle, Settings2, Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import PlayerFormModal from "@/components/admin/PlayerFormModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type {
   ChampionshipDetail, TeamSummary, PlayerListItem,
   ChampionshipPlayer, GenerateChampionshipRequest,
@@ -25,6 +27,9 @@ export default function ConfigurarCampeonatoPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Nome digitado na busca que ainda não existe → fluxo de criação.
+  const [teamToCreate, setTeamToCreate] = useState<string | null>(null);
+  const [playerToCreate, setPlayerToCreate] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const d = await api.get<ChampionshipDetail>(`/api/championships/${campeonatoId}`);
@@ -116,14 +121,10 @@ export default function ConfigurarCampeonatoPage() {
         )}
 
         <AddFromList
-          placeholder="Adicionar time do universo"
+          placeholder="Buscar ou criar time..."
           options={availableTeams.map((t) => ({ id: t.id, name: t.name }))}
           onAdd={(id) => run(() => api.post(`/api/championships/${campeonatoId}/teams`, { teamId: id }))}
-          disabled={busy}
-        />
-        <AddByName
-          placeholder="Ou criar um time novo"
-          onAdd={(name) => run(() => api.post(`/api/championships/${campeonatoId}/teams`, { name }))}
+          onCreateNew={(name) => setTeamToCreate(name)}
           disabled={busy}
         />
       </Section>
@@ -175,9 +176,10 @@ export default function ConfigurarCampeonatoPage() {
         )}
 
         <AddFromList
-          placeholder="Inscrever jogador do universo"
+          placeholder="Buscar ou criar jogador..."
           options={availablePlayers.map((p) => ({ id: p.id, name: p.name }))}
           onAdd={(id) => run(() => api.post(`/api/championships/${campeonatoId}/players`, { playerId: id }))}
+          onCreateNew={(name) => setPlayerToCreate(name)}
           disabled={busy}
         />
 
@@ -209,6 +211,58 @@ export default function ConfigurarCampeonatoPage() {
             setActionError((e as Error).message);
             setBusy(false);
           }
+        }}
+      />
+
+      {/* Confirmação de criação de time novo (a partir da busca) */}
+      <Dialog open={teamToCreate !== null} onOpenChange={(o) => { if (!o) setTeamToCreate(null); }}>
+        <DialogContent className="sm:max-w-sm p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-extrabold" style={{ color: "var(--mc-text)" }}>
+              Criar novo time
+            </DialogTitle>
+            <DialogDescription style={{ color: "var(--mc-text-muted)" }}>
+              O time “{teamToCreate}” não existe no universo. Deseja criá-lo e adicioná-lo a este campeonato?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const name = teamToCreate;
+                setTeamToCreate(null);
+                if (name) run(() => api.post(`/api/championships/${campeonatoId}/teams`, { name }));
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors"
+              style={{ background: "var(--mc-primary)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
+            >
+              <Plus size={15} /> Criar e adicionar
+            </button>
+            <button
+              type="button"
+              onClick={() => setTeamToCreate(null)}
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+              style={{ border: "1px solid var(--mc-border)", color: "var(--mc-text)", background: "transparent" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-bg)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+            >
+              Cancelar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Criação de jogador novo (a partir da busca) → cria no universo e inscreve */}
+      <PlayerFormModal
+        open={playerToCreate !== null}
+        onOpenChange={(o) => { if (!o) setPlayerToCreate(null); }}
+        universeId={detail.universe.id}
+        initialName={playerToCreate ?? ""}
+        onSaved={(saved) => {
+          setPlayerToCreate(null);
+          run(() => api.post(`/api/championships/${campeonatoId}/players`, { playerId: saved.id }));
         }}
       />
     </div>
@@ -360,63 +414,124 @@ function RowItem({ name, onRemove, disabled }: { name: string; onRemove: () => v
   );
 }
 
+// Combobox com busca: filtra a lista por texto e adiciona ao clicar num item.
+// Quando `onCreateNew` é fornecido, um nome sem correspondência exata vira opção de
+// criar (linha "Criar 'x'" e botão Adicionar). Útil quando o universo tem muitos
+// times/jogadores e também para criar um novo direto da busca.
 function AddFromList({
-  placeholder, options, onAdd, disabled,
+  placeholder, options, onAdd, onCreateNew, disabled,
 }: {
   placeholder: string;
   options: { id: number; name: string }[];
   onAdd: (id: number) => void;
+  onCreateNew?: (name: string) => void;
   disabled: boolean;
 }) {
-  const [value, setValue] = useState("");
-  if (options.length === 0) return null;
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  // Sem opções na lista mas com possibilidade de criar, ainda exibimos o campo.
+  if (options.length === 0 && !onCreateNew) return null;
+
+  const raw = query.trim();
+  const q = raw.toLowerCase();
+  const filtered = q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options;
+  const exactMatch = options.find((o) => o.name.toLowerCase() === q);
+  const canCreate = !!onCreateNew && raw.length > 0 && !exactMatch;
+
+  function add(id: number) {
+    onAdd(id);
+    setQuery("");
+  }
+
+  function create() {
+    onCreateNew?.(raw);
+    setQuery("");
+    setOpen(false);
+  }
+
+  // Ação do botão/Enter: nome existente → adiciona; nome novo → cria.
+  function commit() {
+    if (exactMatch) add(exactMatch.id);
+    else if (canCreate) create();
+    else if (!onCreateNew && filtered[0]) add(filtered[0].id);
+  }
+
   return (
-    <div className="flex gap-2">
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        disabled={disabled}
-        className="flex-1 text-sm rounded-lg px-3 py-2 outline-none"
-        style={{ background: "var(--mc-bg)", border: "1px solid var(--mc-border)", color: "var(--mc-text)" }}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>{o.name}</option>
-        ))}
-      </select>
+    <div className="relative flex gap-2" ref={ref}>
+      <div className="relative flex-1">
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ color: "var(--mc-text-muted)" }}
+        />
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocusCapture={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); }
+            else if (e.key === "Escape") setOpen(false);
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="w-full text-sm rounded-lg pl-9 pr-3 py-2 outline-none"
+          style={{ background: "var(--mc-bg)", border: "1px solid var(--mc-border)", color: "var(--mc-text)" }}
+        />
+        {open && (
+          <div
+            className="absolute left-0 right-0 top-full mt-1 z-20 max-h-56 overflow-y-auto rounded-lg py-1"
+            style={{ background: "var(--mc-surface)", border: "1px solid var(--mc-border)", boxShadow: "var(--mc-shadow-md)" }}
+          >
+            {filtered.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => add(o.id)}
+                disabled={disabled}
+                className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-[var(--mc-bg)] disabled:opacity-50"
+                style={{ color: "var(--mc-text)" }}
+              >
+                {o.name}
+              </button>
+            ))}
+            {canCreate && (
+              <button
+                type="button"
+                onClick={create}
+                disabled={disabled}
+                className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-[var(--mc-bg)] disabled:opacity-50"
+                style={{ color: "var(--mc-primary)", borderTop: filtered.length > 0 ? "1px solid var(--mc-border)" : undefined }}
+              >
+                <Plus size={14} /> Criar “{raw}”
+              </button>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <p className="px-3 py-2 text-sm" style={{ color: "var(--mc-text-muted)" }}>
+                {raw ? `Nenhum resultado para “${raw}”` : "Nenhuma opção disponível"}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
       <button
         type="button"
-        onClick={() => { if (value) { onAdd(Number(value)); setValue(""); } }}
-        disabled={disabled || !value}
+        onClick={commit}
+        disabled={disabled || !raw || (!exactMatch && !canCreate && (!!onCreateNew || filtered.length === 0))}
         className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50"
         style={{ background: "var(--mc-primary)" }}
       >
         <Plus size={14} /> Adicionar
-      </button>
-    </div>
-  );
-}
-
-function AddByName({ placeholder, onAdd, disabled }: { placeholder: string; onAdd: (name: string) => void; disabled: boolean }) {
-  const [value, setValue] = useState("");
-  return (
-    <div className="flex gap-2">
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="flex-1 text-sm rounded-lg px-3 py-2 outline-none"
-        style={{ background: "var(--mc-bg)", border: "1px solid var(--mc-border)", color: "var(--mc-text)" }}
-      />
-      <button
-        type="button"
-        onClick={() => { const n = value.trim(); if (n) { onAdd(n); setValue(""); } }}
-        disabled={disabled || !value.trim()}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-        style={{ background: "var(--mc-bg)", border: "1px solid var(--mc-border)", color: "var(--mc-text)" }}
-      >
-        <Plus size={14} /> Criar
       </button>
     </div>
   );

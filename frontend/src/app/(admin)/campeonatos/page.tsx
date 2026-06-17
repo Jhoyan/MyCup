@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Trophy, Globe, Shirt, TrendingUp, CalendarDays, ChevronRight, Plus, Search, Loader2, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import ChampionshipFormModal from "@/components/admin/ChampionshipFormModal";
 import type { ChampionshipSummary, UniverseListItem } from "@/lib/types";
 
 // Item da lista = resumo do campeonato + o universo a que pertence (anexado no front,
@@ -45,6 +46,7 @@ export default function CampeonatosPage() {
   const [busca, setBusca] = useState("");
   const [lista, setLista] = useState<CampeonatoListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [champModalOpen, setChampModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -86,7 +88,7 @@ export default function CampeonatosPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1280px]">
+    <div className="space-y-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -98,15 +100,16 @@ export default function CampeonatosPage() {
             {all.length} campeonatos no total
           </p>
         </div>
-        <Link
-          href="/campeonatos/novo"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+        <button
+          type="button"
+          onClick={() => setChampModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors cursor-pointer"
           style={{ background: "var(--mc-primary)" }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
           onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
         >
           <Plus size={15} /> Novo campeonato
-        </Link>
+        </button>
       </div>
 
       {/* Filters */}
@@ -170,7 +173,7 @@ export default function CampeonatosPage() {
       ) : lista === null ? (
         <LoadingState />
       ) : filtrados.length === 0 ? (
-        <EmptyState />
+        <EmptyState onNew={() => setChampModalOpen(true)} />
       ) : (
         <div className="space-y-3">
           {filtrados.map((c) => (
@@ -178,6 +181,8 @@ export default function CampeonatosPage() {
           ))}
         </div>
       )}
+
+      <ChampionshipFormModal open={champModalOpen} onOpenChange={setChampModalOpen} />
     </div>
   );
 }
@@ -284,7 +289,7 @@ function ErrorState({ message }: { message: string }) {
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div
       className="flex flex-col items-center justify-center py-20 rounded-2xl"
@@ -302,13 +307,14 @@ function EmptyState() {
       <p className="text-sm mb-6" style={{ color: "var(--mc-text-muted)" }}>
         Tente outro filtro ou crie um novo campeonato
       </p>
-      <Link
-        href="/campeonatos/novo"
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
+      <button
+        type="button"
+        onClick={onNew}
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white cursor-pointer"
         style={{ background: "var(--mc-primary)" }}
       >
         <Plus size={15} /> Criar campeonato
-      </Link>
+      </button>
     </div>
   );
 }

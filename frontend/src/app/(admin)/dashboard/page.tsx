@@ -8,6 +8,7 @@ import {
   ChevronRight, Plus, Shirt, Loader2, AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import ChampionshipFormModal from "@/components/admin/ChampionshipFormModal";
 import type {
   DashboardSummary,
   DashboardTopPlayers,
@@ -150,6 +151,7 @@ export default function DashboardPage() {
   const [recentChampionships, setRecentChampionships] = useState<ChampionshipSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [champModalOpen, setChampModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -199,7 +201,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-8 max-w-[1280px]">
+    <div className="space-y-8">
 
       {/* Ticker no topo */}
       {results.length > 0 && <ResultTicker results={results} />}
@@ -214,16 +216,17 @@ export default function DashboardPage() {
             Visão geral dos seus campeonatos
           </p>
         </div>
-        <Link
-          href="/campeonatos/novo"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+        <button
+          type="button"
+          onClick={() => setChampModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors cursor-pointer"
           style={{ background: "var(--mc-primary)" }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary-dark)")}
           onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--mc-primary)")}
         >
           <Plus size={15} />
           Novo campeonato
-        </Link>
+        </button>
       </div>
 
       {/* Stats */}
@@ -289,6 +292,8 @@ export default function DashboardPage() {
         {/* Top Jogadores (30 dias) */}
         <TopPlayersCard data={topPlayers} />
       </div>
+
+      <ChampionshipFormModal open={champModalOpen} onOpenChange={setChampModalOpen} />
     </div>
   );
 }
