@@ -10,10 +10,11 @@ namespace MyCup.Services.Fixtures;
 /// <see cref="Match.AwaySourceGroup"/>. The whole structure is created up front; the fixtures coordinator
 /// fills the knockout slots once each group finishes (see <see cref="FixturesService"/>).
 ///
-/// MVP scope: equal-sized groups whose count is a power of two (1, 2, 4, 8, …), two qualifiers per group,
-/// and the <c>cross_adjacent</c> seeding (1A×2B, 1B×2A, 1C×2D, …). A single group degenerates to a league
-/// whose top two contest a final (1st vs 2nd) — i.e. round robin + knockout without a dedicated format.
-/// See docs/be-008-fixtures.md.
+/// MVP scope: equal-sized groups whose count is a power of two (1, 2, 4, 8, …) and the <c>cross_adjacent</c>
+/// seeding (1A×2B, 1B×2A, 1C×2D, …) with two qualifiers per group. A single group is a league whose top
+/// <c>qualifiers_per_group</c> (any power of two: 2 → final, 4 → semis, 8 → quartas, …) enter a standard
+/// best-vs-worst seeded bracket — i.e. round robin + knockout without a dedicated format. See
+/// docs/be-008-fixtures.md.
 /// </summary>
 public class GroupsKnockoutFixtureGenerator : IFixtureGenerator
 {
@@ -39,12 +40,26 @@ public class GroupsKnockoutFixtureGenerator : IFixtureGenerator
             throw new BadRequestException($"A quantidade de times ({n}) não corresponde a {groupsCount} grupos de {groupSize}");
 
         int qualifiers = config.QualifiersPerGroup;
-        if (qualifiers != 2)
-            throw new BadRequestException("Por enquanto, a classificação por grupo (qualifiers_per_group) deve ser 2");
+        if (qualifiers < 2)
+            throw new BadRequestException("Cada grupo precisa classificar pelo menos 2 times");
         if (qualifiers > groupSize)
             throw new BadRequestException("O número de classificados não pode ser maior que o tamanho do grupo");
-        if (!string.Equals(config.BracketSeeding, "cross_adjacent", StringComparison.OrdinalIgnoreCase))
-            throw new BadRequestException("Por enquanto, apenas o chaveamento 'cross_adjacent' é suportado");
+
+        if (groupsCount == 1)
+        {
+            // Single group: the qualifiers go straight into a seeded bracket, so their count must be a
+            // power of two (2 → final, 4 → semis, 8 → quartas, …). Seeding is intrinsically best-vs-worst.
+            if ((qualifiers & (qualifiers - 1)) != 0)
+                throw new BadRequestException("Com 1 grupo, a quantidade de classificados deve ser uma potência de 2 (2, 4, 8, ...)");
+        }
+        else
+        {
+            // Multiple groups still ship the MVP scope only (two qualifiers, cross_adjacent seeding).
+            if (qualifiers != 2)
+                throw new BadRequestException("Com mais de 1 grupo, a classificação por grupo (qualifiers_per_group) deve ser 2");
+            if (!string.Equals(config.BracketSeeding, "cross_adjacent", StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException("Por enquanto, apenas o chaveamento 'cross_adjacent' é suportado");
+        }
 
         var draw = KnockoutEngine.Shuffle(teamIds);
 
@@ -94,8 +109,11 @@ public class GroupsKnockoutFixtureGenerator : IFixtureGenerator
 
         if (groupsCount == 1)
         {
-            // Single group: it is a league whose top two play a final (1st vs 2nd of the same group).
-            firstRound.Matches.Add(GroupSeedMatch(groups[0], 1, groups[0], 2));
+            // Single group: the top `qualifiers` enter a standard seeded bracket (1st vs last, 2nd vs
+            // second-to-last, …) so the two best only meet at the end. With 2 qualifiers this is just a final.
+            var seedOrder = KnockoutEngine.SeedOrder(qualifiers);
+            for (int i = 0; i < seedOrder.Count; i += 2)
+                firstRound.Matches.Add(GroupSeedMatch(groups[0], seedOrder[i], groups[0], seedOrder[i + 1]));
         }
         else
         {

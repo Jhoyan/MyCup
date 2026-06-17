@@ -303,6 +303,29 @@ public static class KnockoutEngine
         AwaySourceOutcome = awayOutcome
     };
 
+    /// <summary>
+    /// Standard single-elimination seed order for a bracket of <paramref name="size"/> slots (a power of
+    /// two): the 1-based seeds in bracket-position order, so pairing consecutive entries (1×size, 2×size-1, …)
+    /// keeps the top seeds in opposite halves and they only meet at the latest possible round.
+    /// E.g. size 4 → [1,4,2,3]; size 8 → [1,8,4,5,2,7,3,6].
+    /// </summary>
+    public static List<int> SeedOrder(int size)
+    {
+        var order = new List<int> { 1 };
+        for (int half = 1; half < size; half <<= 1)
+        {
+            int sum = 2 * half + 1;
+            var next = new List<int>(half * 2);
+            foreach (var seed in order)
+            {
+                next.Add(seed);
+                next.Add(sum - seed);
+            }
+            order = next;
+        }
+        return order;
+    }
+
     /// <summary>Friendly stage name for a round, based on how many teams contest it.</summary>
     public static string NameForTeams(int teams) => teams switch
     {
